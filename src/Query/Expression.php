@@ -2,22 +2,22 @@
 
 /**
  * DB Expression
- * This class is just an value holder so we are able to identify 
+ * This class is just an value holder so we are able to identify
  * if a given string should not be escaped.
- ** 
+ **
  * @package         Hydrahon
  * @copyright       2015 Mario Döring
  */
 
-class Expression 
+class Expression
 {
 	/**
-	 * The value holder 
+	 * The value holder
 	 *
 	 * @var string
 	 */
-	protected $value = null;
-	
+	public $value = null;
+
 	/**
 	 * The constructor that assigns our value
 	 *
@@ -31,8 +31,8 @@ class Expression
 
 	/**
 	 * Return the expressions value
-	 * 
-	 * @return string 
+	 *
+	 * @return string
 	 */
 	public function value()
 	{

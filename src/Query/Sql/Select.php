@@ -1,4 +1,4 @@
-<?php 
+<?php
 
 namespace ClanCats\Hydrahon\Query\Sql;
 
@@ -45,17 +45,11 @@ class Select extends SelectBase implements FetchableInterface
 
     /**
      * The query having statements
-     * 
+     *
      * @var array
      */
     protected $havings = array();
 
-    /**
-     * join container
-     *
-     * @var array
-     */
-    protected $joins = array();
 
     /**
      * group the results by a given key
@@ -73,7 +67,7 @@ class Select extends SelectBase implements FetchableInterface
 
     /**
      * Inherit property values from parent query
-     * 
+     *
      * @param BaseQuery             $parent
      * @return void
      */
@@ -83,11 +77,11 @@ class Select extends SelectBase implements FetchableInterface
 
         if ($parent instanceof Select) {
             $parent->copyTo($this);
-        } 
+        }
     }
 
     /**
-     * Copy current queries select attributes to the given one 
+     * Copy current queries select attributes to the given one
      *
      * @param Select            $query
      */
@@ -116,11 +110,11 @@ class Select extends SelectBase implements FetchableInterface
 
     /**
      * Set the selected fields fields
-     * 
+     *
      *     ->fields('title')
-     * 
+     *
      *     ->fields(['id', 'name'])
-     *     
+     *
      *     ->fields('id, name, created_at as created')
      *
      * @param array         $values
@@ -132,7 +126,7 @@ class Select extends SelectBase implements FetchableInterface
         $this->fields = array();
 
         // when a string is given
-        if (is_string($fields)) 
+        if (is_string($fields))
         {
             $fields = $this->stringArgumentToArray($fields);
         }
@@ -162,7 +156,7 @@ class Select extends SelectBase implements FetchableInterface
 
     /**
      * Add a single select field
-     * 
+     *
      *     ->addField('title')
      *
      * @param string                $field
@@ -171,12 +165,39 @@ class Select extends SelectBase implements FetchableInterface
      */
     public function addField($field, $alias = null)
     {
-        $this->fields[] = array($field, $alias); return $this;
+    	// remove "as" from field call
+    	if (is_string($field) && strpos($field, ' as ') !== false){
+    		$parts = explode(' as ', $field);
+    		$field = trim($parts[0]);
+    		$alias = $alias ? $alias : trim($parts[1]);
+    	}
+    	// add default table to field if user didnot, joined fields mostly added per dot table
+    	// could be columns with dots in name
+//     	if ( strpos($field, '.') === false  && $this->fieldTablePrefix )
+//     	{
+//     		$field = $this->fieldTablePrefix . "." . $field;
+//     	}
+
+    	$this->fields[] = array($field, $alias) ; return $this;
+    }
+
+    /**
+     * Shortcut to add a function
+     *
+     *     ->addFieldFunction('functionname', [params], alias)
+     *
+     * @param string                $field
+     * @param string                $alias
+     * @return self The current query builder.
+     */
+    public function addFieldFunc($func, $field, $options,$alias = null)
+    {
+    	$this->addField(new Func($func, $field, $options), $alias); return $this;
     }
 
     /**
      * Shortcut to add a count function
-     * 
+     *
      *     ->addFieldCount('id')
      *
      * @param string                $field
@@ -190,7 +211,7 @@ class Select extends SelectBase implements FetchableInterface
 
     /**
      * Shortcut to add a max function
-     * 
+     *
      *     ->addFieldMax('views')
      *
      * @param string                $field
@@ -204,7 +225,7 @@ class Select extends SelectBase implements FetchableInterface
 
     /**
      * Shortcut to add a min function
-     * 
+     *
      *     ->addFieldMin('views')
      *
      * @param string                $field
@@ -218,7 +239,7 @@ class Select extends SelectBase implements FetchableInterface
 
     /**
      * Shortcut to add a sum function
-     * 
+     *
      *     ->addFieldSum('views')
      *
      * @param string                $field
@@ -232,7 +253,7 @@ class Select extends SelectBase implements FetchableInterface
 
     /**
      * Shortcut to add a avg function
-     * 
+     *
      *     ->addFieldAvg('views')
      *
      * @param string                $field
@@ -246,7 +267,7 @@ class Select extends SelectBase implements FetchableInterface
 
     /**
      * Shortcut to add a price function
-     * 
+     *
      *     ->addFieldRound('price')
      *
      * @param string                $field
@@ -259,14 +280,53 @@ class Select extends SelectBase implements FetchableInterface
     }
 
     /**
+     * Shortcut to add a aes function
+     *
+     *     ->addFieldAesEnc('value')
+     *
+     * @param string                $field
+     * @param string                $alias
+     * @return self The current query builder.
+     */
+    public function addFieldEncrypt($value="", $key = '__AES_KEY__')
+    {
+    	$this->addField(new Func('aes_encrypt', (Object)["value"=>$value], (Object)["value"=>$key])); return $this;
+    }
+
+
+    /**
+     * Shortcut to add a aes function
+     *
+     *     ->addFieldAesDec('value')
+     *
+     * @param string                $field
+     * @param string                $alias
+     * @return self The current query builder.
+     */
+    public function addFieldDecrypt($field, $key = "__AES_KEY__", $alias = null)
+    {
+    	// remove "as" from string
+    	if (strpos($field, ' as ') !== false)
+    	{
+    		$parts = explode(' as ', $string);
+    		$field = trim($string[0]);
+    		$alias = $alias ? $alias : $this->escape(trim($string[1]));
+    	}
+    	if (!$alias){
+    		$alias = end(explode(".",$field));
+    	}
+    	$this->addField(new Func('aes_decrypt', $field, (Object)["value"=>$key]), $alias); return $this;
+    }
+
+    /**
      * Add an order by statement to the current query
-     * 
+     *
      *     ->orderBy('created_at')
      *     ->orderBy('modified_at', 'desc')
-     *     
+     *
      *     // multiple order statements
      *     ->orderBy(['firstname', 'lastname'], 'desc')
-     * 
+     *
      *     // muliple order statements with diffrent directions
      *     ->orderBy(['firstname' => 'asc', 'lastname' => 'desc'])
      *
@@ -284,10 +344,14 @@ class Select extends SelectBase implements FetchableInterface
         {
             $this->orders[] = array($columns, $direction); return $this;
         }
-        
-        foreach ($columns as $key => $column) 
+        elseif ($columns instanceof Func)
         {
-            if (is_numeric($key)) 
+        	$this->orders[] = array($columns, $direction); return $this;
+        }
+
+        foreach ($columns as $key => $column)
+        {
+            if (is_numeric($key))
             {
                 if ($column instanceof Expression)
                 {
@@ -305,7 +369,7 @@ class Select extends SelectBase implements FetchableInterface
 
     /**
      * Add a group by statement to the current query
-     * 
+     *
      *     ->groupBy('category')
      *     ->gorupBy(['category', 'price'])
      *
@@ -319,7 +383,7 @@ class Select extends SelectBase implements FetchableInterface
             $groupKeys = $this->stringArgumentToArray($groupKeys);
         }
 
-        foreach ($groupKeys as $groupKey) 
+        foreach ($groupKeys as $groupKey)
         {
             $this->groups[] = $groupKey;
         }
@@ -380,9 +444,9 @@ class Select extends SelectBase implements FetchableInterface
 
     /**
      * Creates a having in statement
-     * 
+     *
      *     ->havingIn('id', [42, 38, 12])
-     * 
+     *
      * @param string                    $column
      * @param array                     $options
      * @return self The current query builder.
@@ -400,9 +464,9 @@ class Select extends SelectBase implements FetchableInterface
 
     /**
      * Creates a having in statement
-     * 
+     *
      *     ->havingIn('id', [42, 38, 12])
-     * 
+     *
      * @param string                    $column
      * @param array                     $options
      * @return self The current query builder.
@@ -420,9 +484,9 @@ class Select extends SelectBase implements FetchableInterface
 
     /**
      * Creates a having something is null statement
-     * 
+     *
      *     ->havingNull('modified_at')
-     * 
+     *
      * @param string                    $column
      * @return self The current query builder.
      */
@@ -433,9 +497,9 @@ class Select extends SelectBase implements FetchableInterface
 
      /**
      * Creates a having something is not null statement
-     * 
+     *
      *     ->havingNotNull('created_at')
-     * 
+     *
      * @param string                    $column
      * @return self The current query builder.
      */
@@ -446,9 +510,9 @@ class Select extends SelectBase implements FetchableInterface
 
     /**
      * Creates a or having something is null statement
-     * 
+     *
      *     ->orHavingNull('modified_at')
-     * 
+     *
      * @param string                    $column
      * @return self The current query builder.
      */
@@ -459,9 +523,9 @@ class Select extends SelectBase implements FetchableInterface
 
     /**
      * Creates a or having something is not null statement
-     * 
+     *
      *     ->orHavingNotNull('modified_at')
-     * 
+     *
      * @param string                    $column
      * @return self The current query builder.
      */
@@ -472,7 +536,7 @@ class Select extends SelectBase implements FetchableInterface
 
     /**
      * Will reset the current selects having conditions
-     * 
+     *
      * @return self The current query builder.
      */
     public function resetHavings()
@@ -480,103 +544,7 @@ class Select extends SelectBase implements FetchableInterface
         $this->havings = array(); return $this;
     }
 
-    /**
-     * Add a join statement to the current query
-     * 
-     *     ->join('avatars', 'users.id', '=', 'avatars.user_id')
-     *
-     * @param array|string              $table The table to join. (can contain an alias definition.)
-     * @param string                    $localKey 
-     * @param string                    $operator The operator (=, !=, <, > etc.)
-     * @param string                    $referenceKey
-     * @param string                    $type The join type (inner, left, right, outer)
-     * 
-     * @return self The current query builder.
-     */
-    public function join($table, $localKey, $operator = null, $referenceKey = null, $type = 'left')
-    {
-        // validate the join type
-        if (!in_array($type, array('inner', 'left', 'right', 'outer')))
-        {
-            throw new Exception('Invalid join type "'.$type.'" given. Available type: inner, left, right, outer');
-        }
-
-        // to make nested joins possible you can pass an closure
-        // wich will create a new query where you can add your nested wheres
-        if (is_object($localKey) && ($localKey instanceof \Closure)) 
-        {
-            // create new query object
-            $subquery = new SelectJoin;
-
-            // run the closure callback on the sub query
-            call_user_func_array($localKey, array(&$subquery));
-    
-            // add the join
-            $this->joins[] = array($type, $table, $subquery); return $this;
-        }
-
-        $this->joins[] = array($type, $table, $localKey, $operator, $referenceKey); return $this;
-    }
-
-    /**
-     * Left join same as join with special type
-     *
-     * @param array|string              $table The table to join. (can contain an alias definition.)
-     * @param string                    $localKey
-     * @param string                    $operator The operator (=, !=, <, > etc.)
-     * @param string                    $referenceKey
-     * 
-     * @return self The current query builder.
-     */
-    public function leftJoin($table, $localKey, $operator = null, $referenceKey = null)
-    {
-        return $this->join($table, $localKey, $operator, $referenceKey, 'left');
-    }
-
-    /**
-     * Alias of the `join` method with join type right.
-     *
-     * @param array|string              $table The table to join. (can contain an alias definition.)
-     * @param string                    $localKey
-     * @param string                    $operator The operator (=, !=, <, > etc.)
-     * @param string                    $referenceKey
-     * 
-     * @return self The current query builder.
-     */
-    public function rightJoin($table, $localKey, $operator = null, $referenceKey = null)
-    {
-        return $this->join($table, $localKey, $operator, $referenceKey, 'right');
-    }
-
-    /**
-     * Alias of the `join` method with join type inner.
-     *
-     * @param array|string              $table The table to join. (can contain an alias definition.)
-     * @param string                    $localKey
-     * @param string                    $operator The operator (=, !=, <, > etc.)
-     * @param string                    $referenceKey
-     * 
-     * @return self The current query builder.
-     */
-    public function innerJoin($table, $localKey, $operator = null, $referenceKey = null)
-    {
-        return $this->join($table, $localKey, $operator, $referenceKey, 'inner');
-    }
-
-    /**
-     * Alias of the `join` method with join type outer.
-     *
-     * @param array|string              $table The table to join. (can contain an alias definition.)
-     * @param string                    $localKey
-     * @param string                    $operator The operator (=, !=, <, > etc.)
-     * @param string                    $referenceKey
-     * 
-     * @return self The current query builder.
-     */
-    public function outerJoin($table, $localKey, $operator = null, $referenceKey = null)
-    {
-        return $this->join($table, $localKey, $operator, $referenceKey, 'outer');
-    }
+	// joins moved to selectBase
 
     /**
      * Forward a result value as array key
@@ -589,7 +557,7 @@ class Select extends SelectBase implements FetchableInterface
         if ($key === false) {
             $this->forwardKey = false;
         } elseif ($key === true) {
-            $this->forwardKey = \ClanCats::$config->get('database.default_primary_key', 'id');
+            $this->forwardKey = "uid"; //\ClanCats::$config->get('database.default_primary_key', 'id');
         } else {
             $this->forwardKey = $key;
         }
@@ -629,7 +597,7 @@ class Select extends SelectBase implements FetchableInterface
 
     /**
      * Executes the `executeResultFetcher` callback and handles the results.
-     * 
+     *
      * @return mixed The fetched result.
      */
     public function get()
@@ -645,38 +613,44 @@ class Select extends SelectBase implements FetchableInterface
 
         // In case we should forward a key means using a value
         // from every result as array key.
-        if ((!empty($results)) && $this->forwardKey !== false && is_string($this->forwardKey)) 
+        if ((!empty($results)) && $this->forwardKey !== false && is_string($this->forwardKey))
         {
             $rawResults = $results;
             $results = array();
 
-            // check if the collection is beeing fetched 
-            // as an associated array 
+            // check if the collection is beeing fetched
+            // as an associated array
             if (!is_array(reset($rawResults)))
             {
                 throw new Exception('Cannot forward key, the result is no associated array.');
             }
 
-            foreach ($rawResults as $result) 
+            // check if forwardKey present
+            if (!array_key_exists($this->forwardKey, reset($rawResults)))
+            {
+            	throw new Exception('Cannot forward key, key not in result fields.');
+            }
+
+            foreach ($rawResults as $result)
             {
                 $results[$result[$this->forwardKey]] = $result;
             }
         }
 
         // Group the resuls by a items value
-        if ((!empty($results)) && $this->groupResults !== false && is_string($this->groupResults)) 
+        if ((!empty($results)) && $this->groupResults !== false && is_string($this->groupResults))
         {
             $rawResults = $results;
             $results = array();
 
-            // check if the collection is beeing fetched 
-            // as an associated array 
+            // check if the collection is beeing fetched
+            // as an associated array
             if (!is_array(reset($rawResults)))
             {
                 throw new Exception('Cannot forward key, the result is no associated array.');
             }
 
-            foreach ($rawResults as $key => $result) 
+            foreach ($rawResults as $key => $result)
             {
                 $results[$result[$this->groupResults]][$key] = $result;
             }
@@ -684,7 +658,7 @@ class Select extends SelectBase implements FetchableInterface
 
         // when the limit is specified to exactly one result we
         // return directly that one result instead of the entire array
-        if ($this->limit === 1) 
+        if ($this->limit === 1)
         {
             $results = reset($results);
         }
@@ -700,7 +674,7 @@ class Select extends SelectBase implements FetchableInterface
      */
     public function run()
     {
-        // run is basically ported from CCF, laravels `get` just feels 
+        // run is basically ported from CCF, laravels `get` just feels
         // much better so lets move on...
         trigger_error('The `run` method is deprecated, `get` method instead.', E_USER_DEPRECATED);
 
@@ -725,7 +699,7 @@ class Select extends SelectBase implements FetchableInterface
      * @param string            $key
      * @return mixed
      */
-    public function find($id, $key = 'id')
+    public function find($id, $key = 'uid')
     {
         return $this->where($key, $id)->one();
     }
@@ -736,7 +710,7 @@ class Select extends SelectBase implements FetchableInterface
      * @param string            $key By what should the first item be selected? Default is: 'id'
      * @return mixed The first result.
      */
-    public function first($key = 'id')
+    public function first($key = 'uid')
     {
         return $this->orderBy($key, 'asc')->one();
     }
@@ -748,7 +722,7 @@ class Select extends SelectBase implements FetchableInterface
      * @param string            $name
      * @return mixed the last result.
      */
-    public function last($key = 'id')
+    public function last($key = 'uid')
     {
         return $this->orderBy($key, 'desc')->one();
     }
@@ -761,7 +735,7 @@ class Select extends SelectBase implements FetchableInterface
      */
     public function column($column)
     {
-        $result = $this->fields($column)->one(); 
+        $result = $this->fields($column)->one();
 
         // only return something if something is found
         if (is_array($result))
@@ -771,7 +745,7 @@ class Select extends SelectBase implements FetchableInterface
     }
 
     /**
-     * Just return the number of results 
+     * Just return the number of results
      *
      * @param string                    $field
      * @return int
@@ -832,9 +806,9 @@ class Select extends SelectBase implements FetchableInterface
         return $this->column(new Func('avg', $field));
     }
 
-    /** 
+    /**
      * Do any results of this query exist?
-     * 
+     *
      * @return bool
      */
     public function exists()
@@ -851,7 +825,7 @@ class Select extends SelectBase implements FetchableInterface
         {
             return (bool) $result[0]['exists'];
         }
-        
+
         return false;
     }
 }

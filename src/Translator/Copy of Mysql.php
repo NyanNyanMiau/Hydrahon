@@ -115,7 +115,7 @@ class Mysql implements TranslatorInterface
      */
     protected function attr($key)
     {
-    	return isset($this->attributes[$key]) ? $this->attributes[$key] : null;
+        return $this->attributes[$key];
     }
 
     /**
@@ -140,12 +140,6 @@ class Mysql implements TranslatorInterface
         return $function instanceof Func;
     }
 
-    protected function isSelect($select)
-    {
-    	return $select instanceof Select;
-    }
-
-
     protected function isStdClass($param){
     	return $param instanceof \stdClass;
     }
@@ -163,8 +157,8 @@ class Mysql implements TranslatorInterface
     /**
      * Adds a parameter to the builder
      *
-     * - CBX - added using of reference
-     * - @todo allow to pass parameter type
+     * - CBX, added using of reference
+     *
      * @return void
      */
     protected function addParameter(&$value)
@@ -182,10 +176,6 @@ class Mysql implements TranslatorInterface
     {
         if (!$this->isExpression($value))
         {
-        	if ( is_array($value) ){
-        		$value = reset($value);
-        	}
-        	if ( strtolower($value) === "null"){ return 'null'; } // conditions with "field is ?" - lead to syntax error if "null" is added per "?" = "null"
             $this->addParameter($value); return '?';
         }
 
@@ -206,22 +196,115 @@ class Mysql implements TranslatorInterface
         }));
     }
 
-    function escapeSelect($select)
+	/*
+	 * copy from parseTable
+	 * to extract parts
+	 *
+	 * database.table as alias
+	 * add to reference array for used tables
+	 * return parts
+	 * */
+    public function processTableString($passedString = null)
     {
-    	$translator = new static;
+    	$string = $passedString;
 
-    	// translate the subselect
-    	@list($subQuery, $subQueryParameters) = $translator->translate( $select );
-
-    	// merge the parameters
-    	foreach($subQueryParameters as $parameter)
+    	if ($string == null )
     	{
-    		$this->addParameter($parameter);
+    		$table = $this->attr('table');
+    		$database = $this->attr('database');
+    		$alias = null;
+    	}else{
+
+    		$table =null;
+    		$database = null;
+    		$alias = null;
     	}
 
-    	return $subQuery;
-    }
+    	// when the table is an array we have a table with alias
+    	if (is_array($table))
+    	{
+    		reset($table);
 
+    		// the table might be a subselect so check that
+    		// first and compile the select if it is one
+    		if ($table[key($table)] instanceof Select)
+    		{
+    			$translator = new static;
+
+    			// translate the subselect
+    			list($subQuery, $subQueryParameters) = $translator->translate($table[key($table)]);
+
+    			// merge the parameters
+    			foreach($subQueryParameters as $parameter)
+    			{
+    				$this->addParameter($parameter);
+    			}
+
+    			// add subquery alias
+    			$alias = key($table);
+    			$build = '(' . $subQuery . ') as ' . $this->escape($alias);
+
+    			// add alias to for field assigen
+    			$this->_aliasToTable[$alias] = $table;
+
+    			// return build and table alias
+    			return [$build, $alias, $alias];
+    		}
+
+    		// otherwise continue with normal table
+    		if ($allowAlias)
+    		{
+    			$table = key($table) . ' as ' . $table[key($table)];
+    		} else {
+    			$table = key($table);
+    		}
+    	}
+
+    	// the string might contain an 'as' statement that we wil have to split.
+    	if (strpos($string, ' as ') !== false)
+    	{
+    		list($string, $alias, $rest) = explode(' as ', $string);
+    		$alias = trim($alias);
+    		$string = trim($string);
+
+    		if ( $rest!== null ){
+    			throw new \Exception('only 2 values expected, table "as" split: '.$passedString);
+    		}
+    		if ( !strlen($alias) ){
+    			throw new \Exception('alias is empty after table "as" split: '.$passedString);
+    		}
+    		if ( !strlen($string) ){
+    			throw new \Exception('table string is empty after table "as" split: '.$passedString);
+    		}
+    	}
+
+    	// it also might contain dott seperations we have to split
+    	// could be columns with dots in name
+    	if (strpos($string, '.') !== false)
+    	{
+    		$string = explode('.', $string);
+    		if ( count($string) != 2 ){
+    			throw new \Exception('wrong count after table "." split');
+    		}
+    		$database = $string[0];
+    		$table = $string[1];
+    	}
+
+    	$table = $table ? $table : $string;
+    	$alias = $alias ? $alias : $table;
+
+    	// the escaped query part
+    	$build = "";
+    	if( $database ){ $build = $this->escapeIdentifier($database) . "."; }
+    	$build .=  $this->escapeIdentifier($table);
+    	if ( $alias != $table ){ $build .= " as " .  $this->escapeIdentifier($alias); }
+
+    	// add alias to for field assigen
+    	$this->_aliasToTable[$alias] = $table;
+
+    	// return build and table alias
+    	return [$build, $table, $alias];
+    }
 
     /**
      * Escape / wrap an string for sql
@@ -229,35 +312,24 @@ class Mysql implements TranslatorInterface
      * @param string|object    $string
      * @param array                   $backpass add type="table, field, alias" array of keys and ref vars ["alias"=> &$alias]
      */
-    protected function escape($string)
+    protected function escape($string, &$backpass=[])
     {
+    	$type = isset($backpass["type"]) ? $backpass["type"] : "value";
+
         if (is_object($string))
         {
             if ($this->isExpression($string))
             {
-            	$aes_key = "__AES_KEY__";
-            	// @todo replace use of __AES_KEY__ with ? and add to parameters
-            	$aParts = explode($aes_key, $string->value());
-            	if ( count($aParts) > 1 ){
-            		for ($i=0; $i< count($aParts); $i++){
-            			$this->addParameter($aes_key);
-            		}
-            		return implode("?", $aParts);
-            	}
                 return $string->value();
             }
             elseif ($this->isFunction($string))
             {
                 return $this->escapeFunction($string);
             }
-            elseif ($this->isSelect($string))
-            {
-            	return "(" . $this->escapeSelect($string) . ")";
-            }
 
             elseif ( $this->isStdClass($string) )
             {
-            	// cbx - we use this until param class injected
+            	// we use this until param class injected
             	return $this->param($string->value);
             }
 
@@ -267,19 +339,13 @@ class Mysql implements TranslatorInterface
             }
         }
 
-        // if distinct used with field count(distinct field), prevent escape
-        if (strpos($string, 'distinct ') === 0)
-        {
-        	$string = explode('distinct ', $string);
-        	return 'distinct ' . $this->escape(trim($string[1]));
-        }
-
         // the string might contain an 'as' statement that we wil have to split.
         if (strpos($string, ' as ') !== false)
         {
             $string = explode(' as ', $string);
-
-            return $this->escape(trim($string[0])) . ' as ' . $this->escape(trim($string[1]));
+            $alias = trim($string[1]);
+            $backpass["alias"] = $alias;
+            return $this->escape(trim($string[0]), $backpass) . ' as ' . $this->escape($alias);
         }
 
         // it also might contain dott seperations we have to split
@@ -287,12 +353,14 @@ class Mysql implements TranslatorInterface
         if (strpos($string, '.') !== false)
         {
             $string = explode('.', $string);
+
             foreach ($string as $key => $item)
             {
             	$string[$key] = $this->escapeIdentifier($item);
             }
+            $string =  implode('.', $string);
 
-            return implode('.', $string);
+            return $string;
         }
 
         return $this->escapeIdentifier($string);
@@ -322,93 +390,22 @@ class Mysql implements TranslatorInterface
 
         $arguments = $function->arguments();
 
-        /*
-         * cbx - added custom behaviour of functions,
-         * - test passed table fields are encrypted
-         * */
-        switch ($function->name())
-        {
+        $wrap = false;
+        switch ($function->name()){
         	case 'aes_decrypt':
         		$wrap = 'convert(%s using utf8)';
-
-        		@List(&$field, $aes_key) = $arguments;
-        		$aes_key = '__AES_KEY__';
-        		$f = $buffer . $this->escape($field) . ", " . $this->param($aes_key) . ")";
-        		$f = sprintf($wrap, $f);
         	break;
+        }
 
+        foreach($arguments as &$argument)
+        {
+            $argument = $this->escape($argument);
+        }
 
-        	/*
-        	 * group_concat( distinct field1` order by `field2` seperator ',' )
-        	 * note: max return length of group_concat is default 1024 chars
-        	 *
-        	 * @note dont use group_concat to stick uids
-        	 */
-        	case 'group_concat':
+        $f = $buffer . implode(', ', $arguments) . ')';
 
-        		if (count($arguments) > 2) {
-        			throw new Exception("only 2 parameters expected, use param2 as keyed array, options avail [distinct, orderby, separator]");
-        		}
-
-        		@list(&$field, $options) = $arguments;
-        		$distinct  = isset($options["distinct"]) 	? $options["distinct"] : false;
-        		$orderby   = isset($options["orderby"]) 	? @list($sort, $dir) = explode(" ", $options["orderby"]) : false;
-        		$separator = isset($options["separator"]) 	? $options["separator"] : false;
-
-        		$f = 	( $distinct ? " distinct " : "" )
-        				. (
-        						is_string($field) && $this->cbx_isFieldEncrypted($field)
-        						? $this->escape(new Func('aes_decrypt', $field))
-        						: $this->escape($field)
-        				)
-        				. ( $orderby ? " " . $this->escape($sort) . " " . ($dir?$dir:"asc") : "")
-        				. ( $separator? " separator '" . $separator. "'" : "");
-
-	       		$f = $buffer .$f. ")";
-			break;
-
-        	case 'str_to_date':
-        	case 'from_unixtime':
-
-        		@List(&$field, $datestring) = $arguments;
-        		$field = is_string($field) && $this->cbx_isFieldEncrypted($field)
-        				 ? $this->escape(new Func('aes_decrypt', $field))
-						 : $this->escape($field);
-
-        		$f = $buffer . $field . ', "' . $datestring . '")';
-        		break;
-
-        	// convert a field to a number - mysql stuff don't work as expected
-        	case '1*':
-
-        		$field = $arguments[0];
-				$f = is_string($field) && $this->cbx_isFieldEncrypted($field)
-						 ? $this->escape(new Func('aes_decrypt', $field))
-						 : $this->escape($field);
-
-				$f = $buffer . $f . ')';
-        		break;
-
-        	case 'cast':
-        		$field = $arguments[0];
-        		$f = is_string($field) && $this->cbx_isFieldEncrypted($field)
-		        		? $this->escape(new Func('aes_decrypt', $field))
-		        		: $this->escape($field);
-
-		        $f = $buffer . $f . ' as signed)';
-        		break;
-
-        	// just a try, else we need to add all functions, to decide where is the field
-        	default:
-
-        		foreach($arguments as &$argument){
-        			$argument = is_string($argument) && $this->cbx_isFieldEncrypted($argument)
-        						 ? $this->escape(new Func('aes_decrypt', $argument))
-								 : $this->escape($argument);
-//         			$argument = $this->escape($argument);
-        		}
-        		$f = $buffer . implode(', ', $arguments) . ')';
-        	break;
+        if ($wrap){
+        	$f = sprintf($wrap, $f);
         }
 
         return $f;
@@ -432,17 +429,19 @@ class Mysql implements TranslatorInterface
 
     /**
      * get and escape the table name
-     *
      * @return string
      */
-    protected function escapeTable($allowAlias = true, $table=null)
+    protected function escapeTable($allowAlias = true, $sParseThis=null, &$returnAlias)
     {
-    	$database = null;
-    	if ( is_null($table) )
+    	if ( $sParseThis !== null )
     	{
+    		$table = $sParseThis;
+    	}
+    	else{
 	        $table = $this->attr('table');
 	        $database = $this->attr('database');
     	}
+
         $buffer = '';
 
         if (!is_null($database))
@@ -462,7 +461,7 @@ class Mysql implements TranslatorInterface
                 $translator = new static;
 
                 // translate the subselect
-                @list($subQuery, $subQueryParameters) = $translator->translate($table[key($table)]);
+                list($subQuery, $subQueryParameters) = $translator->translate($table[key($table)]);
 
                 // merge the parameters
                 foreach($subQueryParameters as $parameter)
@@ -470,7 +469,11 @@ class Mysql implements TranslatorInterface
                     $this->addParameter($parameter);
                 }
 
-                return '(' . $subQuery . ') as ' . $this->escape(key($table));
+                // add subquery alias
+                $alias = key($table);
+                $this->_aliasToTable[ $alias ] = $alias;
+                $returnAlias = $alias;
+                return '(' . $subQuery . ') as ' . $this->escape($alias);
             }
 
             // otherwise continue with normal table
@@ -481,6 +484,8 @@ class Mysql implements TranslatorInterface
                 $table = key($table);
             }
         }
+
+        $this->processTableString($table, $returnAlias);
 
         return $buffer . $this->escape($table);
     }
@@ -495,19 +500,7 @@ class Mysql implements TranslatorInterface
     {
         foreach ($params as $key => $param)
         {
-        	if ( is_string($key) && $this->cbx_isFieldEncrypted($key) )
-			{
-				$aes_key = "__AES_KEY__";
-				$params[$key] = 'aes_encrypt(' . $this->param($param) . ', ' . $this->param($aes_key) . ')';
-			}
-			elseif ($this->isSelect($param))
-			{
-				$params[$key] = "(" . $this->escapeSelect($param) . ")";
-			}
-
-			else{
-				$params[$key] = $this->param($param);
-			}
+            $params[$key] = $this->param($param);
         }
 
         return implode(', ', $params);
@@ -555,34 +548,11 @@ class Mysql implements TranslatorInterface
      */
     protected function translateUpdate()
     {
-        $build = 'update ' . $this->escapeTable();
-
-        // build the join statements
-        if ($this->attr('joins'))
-        {
-        	$build .= $this->translateJoins();
-        }
-
-        $build .= ' set ';
+        $build = 'update ' . $this->escapeTable() . ' set ';
 
         // add the array values.
-        foreach ($this->attr('values') as $key => $value)
-        {
-        	$build .= $this->escape($key) . ' = ';
-
-        	if ( $this->cbx_isFieldEncrypted($key) )
-        	{
-        		$aes_key = "__AES_KEY__";
-        		$build .= 'aes_encrypt(' . $this->param($value) . ', ' . $this->param($aes_key) . ')';
-        	}else{
-
-        		if ( is_array($value) ){
-        			trigger_error("Array passed as value: serialize before! ". $build, E_USER_ERROR);
-        		}
-
-        		$build .= $this->param($value);
-        	}
-        	$build .= ', ';
+        foreach ($this->attr('values') as $key => $value) {
+            $build .= $this->escape($key) . ' = ' . $this->param($value) . ', ';
         }
 
         // cut away the last comma and space
@@ -638,34 +608,7 @@ class Mysql implements TranslatorInterface
 
     }
 
-    // cbx - check if field shall decrypted / encrypted
-    function cbx_isFieldEncrypted($field)
-    {
-    	global $bEncryptionActive, $aEncryptionConfig;
-
-    	if (!is_string($field)){
-    		throw new \Exception("Field should be a string:".var_export($field, 1));
-    	}
-
-    	// silly coders could have put dots in fieldnames
-    	if ( strpos($field, ".") ){
-    		@list($table, $field) = explode(".", $field);
-    	}else{
-    		$table = $this->attr("table");
-    		if ( is_array($table) ){
-    			$table = key($table);
-    		}
-    	}
-    	// check if its an alias and return db table name
-    	if ( isset($this->attr("flags")["aAliasToTable"][$table]) ){
-    		$table = $this->attr("flags")["aAliasToTable"][$table];
-    	}
-
-    	return  $bEncryptionActive
-    			&& isset($aEncryptionConfig[$table])
-    			&& in_array($field, (array)$aEncryptionConfig[$table]);
-
-    }
+    private $aliasTableRef;
 
     /**
      * Translate the current query to an SQL select statement
@@ -674,8 +617,19 @@ class Mysql implements TranslatorInterface
      */
     protected function translateSelect()
     {
+    	var_export( $this->attr("flags")["aAliasToTable"] );
+    	die("----");
         // normal or distinct selection?
         $build = ($this->attr('distinct') ? 'select distinct' : 'select') . ' ';
+
+        // parse table and joins to get used tables and aliases
+        list($sTable, $localTable, $localAlias) = $this->processTableString();
+
+        // build the join statements
+        if ($this->attr('joins'))
+        {
+        	$sJoins = $this->translateJoins();
+        }
 
         // build the selected fields
         $fields = $this->attr('fields');
@@ -684,20 +638,7 @@ class Mysql implements TranslatorInterface
         {
             foreach ($fields as $key => $field)
             {
-                @list($column, $alias) = $field;
-
-                // cbx - we need the field alone, "as" should always removed before - see addField
-                if ( is_string($column) )
-                {
-                	if ( $this->cbx_isFieldEncrypted($column) )
-                	{
-                		if (!$alias){
-                			$alias = explode(".",$column);
-                			$alias = end($alias);
-                		}
-                		$column = new Func('aes_decrypt', $column);
-                	}
-                }
+                list($column, $alias) = $field;
 
                 if (!is_null($alias))
                 {
@@ -719,13 +660,18 @@ class Mysql implements TranslatorInterface
         }
 
         // append the table
-        $build .= ' from ' . $this->escapeTable();
+        $build .= ' from ' . $sTable;
 
-        // build the join statements
-        if ($this->attr('joins'))
-        {
-        	$build .= $this->translateJoins();
-        }
+        // append joins
+        $build .= $sJoins;
+
+
+        var_Export( $build);
+
+        var_Export( $this->_aliasToTable );
+        die();
+
+
 
         // build the where statements
         if ($wheres = $this->attr('wheres'))
@@ -786,7 +732,7 @@ class Mysql implements TranslatorInterface
     protected function translateFieldDecryption($field)
     {
     	print_r($this);
-    	throw new Exception(__method__.' - not done yet');
+    	die();
     }
 
     /**
@@ -814,125 +760,31 @@ class Mysql implements TranslatorInterface
                 // remove the statement from the result (+2 for the space before and after)
                 $translatedSubConditions = substr($translatedSubConditions, strlen($statement) + 2);
 
-                if (count($subConditions)>1)
-                {
-	                // The parameters get added by the call of compile where
-	                $build .= ' ' . $condition[0] . ' ( ' . $translatedSubConditions . ' )';
-                }else{
-                	$build .= ' ' . $condition[0] . ' ' . $translatedSubConditions . '';
-                }
+                // The parameters get added by the call of compile where
+                $build .= ' ' . $condition[0] . ' ( ' . $translatedSubConditions . ' )';
+
                 continue;
             }
-
-            /*Array (
-			    [0] => where
-			    [1] => name
-			    [2] => =
-			    [3] => system/fileversion
-			)*/
-            $condition_0 = $condition[0];
-
-            // cbx - we need the field alone, "as" remove in addField
-            $column = $condition[1];
-
-            if ( is_string($column) )
-            {
-            	// cbx - we need to have a tableprefix if its not an alias
-            	if ( !$this->isAlias($column) )
-            	{
-            		if ( strpos($column, ".") === false ){
-            			$column = $this->attr("fieldTablePrefix") . "." . $column;
-            		}
-
-            		if ( $this->cbx_isFieldEncrypted($column) )
-            		{
-            			$column = new Func('aes_decrypt', $column); // , (object)["value"=>"__AES_KEY__"]
-            		//             		$alias = !is_null($alias) ? $alias : $testField;
-            		}
-            	}
-            }
-
-            // we always need to escape the key
-            $condition_1 = $this->escape($column);
-
-            $condition_2 = $condition[2];
 
             // when we have an array as where values we have
             // to parameterize them
             if (is_array($condition[3]))
             {
-            	if ( $condition_2 === "between" ){
-            		@List($v1, $v2) = $condition[3];
-            		$condition_3 = $this->param($v1) . ' and ' .$this->param($v2);
-            	}else{
-                	$condition_3 = '(' . $this->parameterize($condition[3]) . ')';
-            	}
-
+                $condition[3] = '(' . $this->parameterize($condition[3]) . ')';
             } else {
-
-            	if ( is_object($condition[3]) ){
-            		$condition_3 = $this->escape($condition[3]);
-            	}else{
-                	$condition_3 = $this->param($condition[3]);
-            	}
-
+                $condition[3] = $this->param($condition[3]);
             }
 
+            // we always need to escape the key
+            $condition[1] = $this->escape($condition[1]);
+
             // implode the beauty
-            $build .= " $condition_0 $condition_1 $condition_2 $condition_3";
+            $build .= ' ' . implode(' ', $condition);
         }
 
         return $build;
     }
 
-	function isAlias($column)
-	{
-		foreach( (array)$this->attr("fields") as $field ){
-			if (isset($field[1]) && $field[1] == $column) return true;
-		}
-		return false;
-	}
-
-    function translateOns($attributes)
-    {
-    	$joinConditions = '';
-
-    	// remove the first type from the ons
-    	reset($attributes['ons']);
-    	$attributes['ons'][key($attributes['ons'])][0] = '';
-
-    	foreach($attributes['ons'] as $on)
-    	{
-    		// cbx - on closure
-    		if (isset( $on[1] ) && $on[1] instanceof BaseQuery)
-    		{
-    			/** @var array $subConditions The array of $conditions inside the nested query */
-    			$subAttributes = $on[1]->attributes();
-
-    			$translatedSubConditions = $this->translateOns($subAttributes);
-
-    			// remove the statement from the result (+2 for the space before and after)
-//     			$translatedSubConditions = substr($translatedSubConditions, strlen($statement) + 2);
-
-    			// The parameters get added by the call of compile where
-    			$joinConditions .= ' ' . $on[0] . ' ( ' . $translatedSubConditions . ' )';
-    			continue;
-    		}
-
-    		@list($type, $localKey, $operator, $referenceKey) = $on;
-    		$joinConditions .= ' ' . $type . ' ' . $this->escape($localKey) . ' ' . $operator . ' ' . $this->escape($referenceKey);
-    	}
-
-    	$joinConditions = trim($joinConditions);
-
-    	// compile the where if set
-    	if (!empty($attributes['wheres']))
-    	{
-    		$joinConditions .= ' and ' . substr($this->translateWhere($attributes['wheres']), 7);
-    	}
-
-    	return $joinConditions;
-    }
     /**
      * Build the sql join statements
      *
@@ -951,10 +803,45 @@ class Mysql implements TranslatorInterface
             $build .= ' ' . $type . ' join ';
 
             // table
-            $build .= $this->escapeTable(true, $table);
+            list($sJoinTable, $refTable, $refAlias) = $this->processTableString($table);
+
+            $build .= $sJoinTable;
+
+
+//             if (is_array($table))
+//             {
+//                 reset($table);
+
+//                 // the table might be a subselect so check that
+//                 // first and compile the select if it is one
+//                 if ($table[key($table)] instanceof Select)
+//                 {
+//                     $translator = new static;
+
+//                     // translate the subselect
+//                     list($subQuery, $subQueryParameters) = $translator->translate($table[key($table)]);
+
+//                     // merge the parameters
+//                     foreach($subQueryParameters as $parameter)
+//                     {
+//                         $this->addParameter($parameter);
+//                     }
+
+//                     // add subquery alias
+//                     $alias = key($table);
+//                     $this->_aliasToTable[ $alias ] = $alias;
+//                     $build .= '(' . $subQuery . ') as ' . $this->escape($alias);
+//                 }else{
+//                 	// add code here?
+//                 }
+//             } else {
+//                 // start the join
+//             	$build .= $this->escape($table);
+//             }
 
             // start the join
             $build .= ' on ( ';
+
 
             // to make nested join conditions possible you can pass an closure
             // wich will create a new query where you can add your nested ons and wheres
@@ -962,58 +849,34 @@ class Mysql implements TranslatorInterface
             {
                 $subAttributes = $join[2]->attributes();
 
-//                 $joinConditions = '';
-                $build .= $this->translateOns($subAttributes);
+                $joinConditions = '';
 
-//                 print_r($build);
-//                 die();
-//                 foreach($subAttributes['ons'] as $on)
-//                 {
-//                 	var_dump( $on );
-//                 	// cbx - on closure
-//                 	if (isset( $on[1] ) && $on[1] instanceof SelectJoin)
-//                 	{
+                // remove the first type from the ons
+                reset($subAttributes['ons']);
+                $subAttributes['ons'][key($subAttributes['ons'])][0] = '';
 
-//                 		var_dump( $on );
-//                 		die();
+                foreach($subAttributes['ons'] as $on)
+                {
+                    list($type, $localKey, $operator, $referenceKey) = $on;
+                    $joinConditions .= ' ' . $type . ' ' . $this->escape($localKey) . ' ' . $operator . ' ' . $this->escape($referenceKey);
+                }
 
-//                 		/** @var array $subConditions The array of $conditions inside the nested query */
-//                 		$subConditions = $condition[1]->attributes()[$statement . 's'];
+                $build .= trim($joinConditions);
 
-//                 		$translatedSubConditions = $this->translateConditional($statement, $subConditions);
-
-//                 		// remove the statement from the result (+2 for the space before and after)
-//                 		$translatedSubConditions = substr($translatedSubConditions, strlen($statement) + 2);
-
-//                 		if (count($subConditions)>1)
-//                 		{
-//                 			// The parameters get added by the call of compile where
-//                 			$joinConditions .= ' ' . $on[0] . ' ( ' . $translatedSubConditions . ' )';
-//                 		}else{
-//                 			$joinConditions .= ' ' . $on[0] . ' ' . $translatedSubConditions . '';
-//                 		}
-//                 		continue;
-//                 	}
-
-//                 	@list($type, $localKey, $operator, $referenceKey) = $on;
-//                 	$joinConditions .= ' ' . $type . ' ' . $this->escape($localKey) . ' ' . $operator . ' ' . $this->escape($referenceKey);
-//                 }
-
-//                 $build .= trim($joinConditions);
-
-//                 // compile the where if set
-//                 if (!empty($subAttributes['wheres']))
-//                 {
-//                     $build .= ' and ' . substr($this->translateWhere($subAttributes['wheres']), 7);
-//                 }
+                // compile the where if set
+                if (!empty($subAttributes['wheres']))
+                {
+                    $build .= ' and ' . substr($this->translateWhere($subAttributes['wheres']), 7);
+                }
             }
             else
             {
                 // othewise default join
-                @list($type, $table, $localKey, $operator, $referenceKey) = $join;
+                list($type, $table, $localKey, $operator, $referenceKey) = $join;
                 $build .= $this->escape($localKey) . ' ' . $operator . ' ' . $this->escape($referenceKey);
             }
-            $build .= ' )';
+
+            $build .= ' ) ';
         }
 
         return $build;
@@ -1036,27 +899,12 @@ class Mysql implements TranslatorInterface
             if (is_array($direction))
             {
                 // This only works in php 7 the php 5 fix is below
-                //@list($column, $direction) = $direction;
+                //list($column, $direction) = $direction;
                 $column = $direction[0];
                 $direction = $direction[1];
             }
 
-
-            // cbx - we need to have a tableprefix
-            if ( strpos($column, ".") === false ){
-            	$column = $this->attr("fieldTablePrefix") . "." . $column;
-            }
-
-            if ( is_string($column) && $this->cbx_isFieldEncrypted($column) )
-            {
-            	$column = new Func('aes_decrypt', $column); // (object)["value"=>"__AES_KEY__"]
-
-            	$column = $this->escape($column) . ' collate utf8_general_ci';
-            }else{
-            	$column = $this->escape($column);
-            }
-
-            $build .= $column. ' ' . $direction . ', ';
+            $build .= $this->escape($column) . ' ' . $direction . ', ';
         }
 
         return substr($build, 0, -2);
@@ -1136,7 +984,7 @@ class Mysql implements TranslatorInterface
         $translator = new static;
 
         // translate the subselect
-        @list($subQuery, $subQueryParameters) = $translator->translate($this->attr('select'));
+        list($subQuery, $subQueryParameters) = $translator->translate($this->attr('select'));
 
         // merge the parameters
         foreach($subQueryParameters as $parameter)

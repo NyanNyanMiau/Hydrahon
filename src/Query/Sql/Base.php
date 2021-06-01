@@ -10,24 +10,32 @@
 use ClanCats\Hydrahon\BaseQuery;
 
 class Base extends BaseQuery
-{ 
+{
     /**
      * The database the query should be executed on
-     * 
+     *
      * @var string
      */
     protected $database = null;
 
     /**
      * The table the query should be executed on
-     * 
+     *
      * @var string
      */
     protected $table = null;
 
     /**
+     * The table prefix for fields
+     *
+     * @var string
+     */
+    protected $fieldTablePrefix = null;
+
+
+    /**
      * Inherit property values from parent query
-     * 
+     *
      * @param BaseQuery             $parent
      * @return void
      */
@@ -41,14 +49,17 @@ class Base extends BaseQuery
         if (isset($parent->table)) {
             $this->table = $parent->table;
         }
+        if (isset($parent->fieldTablePrefix)) {
+        	$this->fieldTablePrefix = $parent->fieldTablePrefix;
+        }
     }
-    
+
     /**
      * Create a new select query builder
-     *      
+     *
      *     // selecting a table
      *     $h->table('users')
-     *  
+     *
      *     // selecting table and database
      *     $h->table('db_mydatabase.posts')
      *
@@ -59,12 +70,16 @@ class Base extends BaseQuery
     {
         $database = null;
 
+        // cbx
+        $tableName = $tableAlias = $table;
+
         // Check if the table is an object, this means
         // we have an subselect inside the table
-        if (is_object($table) && ($table instanceof \Closure)) 
+        // cbx - added or instance of select
+        if (is_object($table) && ($table instanceof \Closure || $table instanceof Select))
         {
-            // we have to check if an alias isset 
-            // otherwise throw an exception to prevent the 
+            // we have to check if an alias isset
+            // otherwise throw an exception to prevent the
             // "Every derived table must have its own alias" error
             if (is_null($alias))
             {
@@ -72,11 +87,14 @@ class Base extends BaseQuery
             }
 
             $table = array($alias => $table);
-        } 
+
+            // cbx
+            $tableName = $tableAlias = $alias;
+        }
 
         // Check if the $table is an array and the value is an closure
-        // that we can pass a new query object as subquery 
-        if (is_array($table) && is_object(reset($table)) && (reset($table) instanceof \Closure)) 
+        // that we can pass a new query object as subquery
+        if (is_array($table) && is_object(reset($table)) && (reset($table) instanceof \Closure))
         {
             $alias = key($table);
             $table = reset($table);
@@ -87,12 +105,15 @@ class Base extends BaseQuery
             // run the closure callback on the sub query
             call_user_func_array($table, array(&$subquery));
 
-            // set the table 
+            // set the table
             // IMPORTANT: Only if we have a closure as table
             // we set the alias as key. This might cause some confusion
             // but only this way we can keep the normal ['table' => 'alias'] syntax
             $table = array($alias => $subquery);
-        } 
+
+            // cbx
+            $tableName = $tableAlias = $alias;
+        }
 
         // otherwise normally try to split the table and database name
         elseif (is_string($table) && strpos($table, '.') !== false)
@@ -107,20 +128,32 @@ class Base extends BaseQuery
             list($database, $table) = $selection;
         }
 
-        // the table might include an alias we need to parse that one out 
+
+        // the table might include an alias we need to parse that one out
         if (is_string($table) && strpos($table, ' as ') !== false)
         {
             $tableParts = explode(' as ', $table);
             $table = array($tableParts[0] => $tableParts[1]);
+            $alias = $tableParts[1];
+
+            // cbx
+            $tableName = $tableParts[0]; $tableAlias = $tableParts[1];
         }
         elseif(is_string($table) && (!is_null($alias)))
         {
             $table = array($table => $alias);
+            // cbx
+            $tableName = $table; $tableAlias = $alias;
         }
 
         // assing the result
         $this->database = $database;
         $this->table = $table;
+
+        $this->fieldTablePrefix = $tableAlias;
+
+		// cbx
+        $this->flags["aAliasToTable"][ $tableAlias ] = $tableName;
 
         // return self
         return $this;
