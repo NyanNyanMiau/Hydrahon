@@ -94,22 +94,30 @@ class Base extends BaseQuery
 
         // Check if the $table is an array and the value is an closure
         // that we can pass a new query object as subquery
-        if (is_array($table) && is_object(reset($table)) && (reset($table) instanceof \Closure))
+        if ( is_array($table) && is_object(reset($table)) )
         {
-            $alias = key($table);
-            $table = reset($table);
+        	if ( reset($table) instanceof \Closure )
+        	{
+        		$alias = key($table);
+        		$table = reset($table);
 
-            // create new query object
-            $subquery = new Select;
+	            // create new query object
+	            $subquery = new Select;
 
-            // run the closure callback on the sub query
-            call_user_func_array($table, array(&$subquery));
+	            // run the closure callback on the sub query
+	            call_user_func_array($table, array(&$subquery));
 
-            // set the table
-            // IMPORTANT: Only if we have a closure as table
-            // we set the alias as key. This might cause some confusion
-            // but only this way we can keep the normal ['table' => 'alias'] syntax
-            $table = array($alias => $subquery);
+	            // set the table
+	            // IMPORTANT: Only if we have a closure as table
+	            // we set the alias as key. This might cause some confusion
+	            // but only this way we can keep the normal ['table' => 'alias'] syntax
+	            $table = array($alias => $subquery);
+        	}
+        	elseif ( reset($table) instanceof \Select )
+        	{
+        		// like ["alias"=> \Select]
+        		$alias = $alias ? $alias : key($table);
+        	}
 
             // cbx
             $tableName = $tableAlias = $alias;

@@ -594,6 +594,13 @@ class Mysql implements TranslatorInterface
             $build .= $this->translateWhere($wheres);
         }
 
+        // build the order statement
+        if ($this->attr('orders'))
+        {
+        	$build .= $this->translateOrderBy();
+        }
+
+
         // build offset and limit
         if ($this->attr('limit'))
         {
@@ -616,6 +623,12 @@ class Mysql implements TranslatorInterface
         if ($wheres = $this->attr('wheres'))
         {
             $build .= $this->translateWhere($wheres);
+        }
+
+        // build the order statement
+        if ($this->attr('orders'))
+        {
+        	$build .= $this->translateOrderBy();
         }
 
         // build offset and limit

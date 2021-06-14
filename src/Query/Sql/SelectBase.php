@@ -22,6 +22,12 @@ class SelectBase extends Base
 	 */
 	protected $joins = array();
 
+	/**
+	 * order by container
+	 *
+	 * @var array
+	 */
+	protected $orders = array();
 
 
     /**
@@ -183,6 +189,55 @@ class SelectBase extends Base
     }
 
 
+    /**
+     * Add an order by statement to the current query
+     *
+     *     ->orderBy('created_at')
+     *     ->orderBy('modified_at', 'desc')
+     *
+     *     // multiple order statements
+     *     ->orderBy(['firstname', 'lastname'], 'desc')
+     *
+     *     // muliple order statements with diffrent directions
+     *     ->orderBy(['firstname' => 'asc', 'lastname' => 'desc'])
+     *
+     * @param array|string              $cols
+     * @param string                    $order
+     * @return self The current query builder.
+     */
+    public function orderBy($columns, $direction = 'asc')
+    {
+    	if (is_string($columns))
+    	{
+    		$columns = $this->stringArgumentToArray($columns);
+    	}
+    	elseif ($columns instanceof Expression)
+    	{
+    		$this->orders[] = array($columns, $direction); return $this;
+    	}
+    	elseif ($columns instanceof Func)
+    	{
+    		$this->orders[] = array($columns, $direction); return $this;
+    	}
+
+    	foreach ($columns as $key => $column)
+    	{
+    		if (is_numeric($key))
+    		{
+    			if ($column instanceof Expression)
+    			{
+    				$this->orders[] = array($column, $direction);
+    			} else {
+    				$this->orders[$column] = $direction;
+    			}
+    		} else {
+    			$this->orders[$key] = $column;
+    		}
+    	}
+
+    	return $this;
+    }
+
 
 
     /**
@@ -199,6 +254,16 @@ class SelectBase extends Base
         }
 
         return array($argument);
+    }
+
+    /**
+     * Will reset the current orders condition
+     *
+     * @return self The current query builder.
+     */
+    public function resetOrders()
+    {
+    	$this->orders = null; return $this;
     }
 
     /**
