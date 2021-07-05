@@ -164,12 +164,13 @@ class Select extends SelectBase implements FetchableInterface
     		$field = trim($parts[0]);
     		$alias = $alias ? $alias : trim($parts[1]);
     	}
+    	// - oh why i commented this -.-, uncomment now // 25.06.2021
     	// add default table to field if user didnot, joined fields mostly added per dot table
     	// could be columns with dots in name
-//     	if ( strpos($field, '.') === false  && $this->fieldTablePrefix )
-//     	{
-//     		$field = $this->fieldTablePrefix . "." . $field;
-//     	}
+    	if ( is_string($field) && strpos($field, '.') === false && $this->fieldTablePrefix )
+    	{
+    		$field = $this->fieldTablePrefix . "." . $field;
+    	}
 
     	$this->fields[] = array($field, $alias) ; return $this;
     }
@@ -183,7 +184,7 @@ class Select extends SelectBase implements FetchableInterface
      * @param string                $alias
      * @return self The current query builder.
      */
-    public function addFieldFunc($func, $field, $options,$alias = null)
+    public function addFieldFunc($func, $field, $options, $alias = null)
     {
     	$this->addField(new Func($func, $field, $options), $alias); return $this;
     }

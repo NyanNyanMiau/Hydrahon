@@ -848,6 +848,8 @@ class Mysql implements TranslatorInterface
             // cbx - we need the field alone, "as" remove in addField
             $column = $condition[1];
 
+            $isNumber = is_int($condition[3]) || is_float($condition[3]);
+
             if ( is_string($column) )
             {
             	// cbx - we need to have a tableprefix if its not an alias
