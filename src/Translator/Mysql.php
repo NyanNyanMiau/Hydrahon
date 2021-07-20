@@ -617,7 +617,21 @@ class Mysql implements TranslatorInterface
      */
     protected function translateDelete()
     {
-        $build = 'delete from ' . $this->escapeTable(false);
+        $build = 'delete ';
+
+        // build the join statements
+        if ($this->attr('delete'))
+        {
+        	$build .= $this->escapeList(explode(",", $this->attr('delete')));
+        }
+
+        $build .= ' from ' . $this->escapeTable(false);
+
+        // build the join statements
+        if ($this->attr('joins'))
+        {
+        	$build .= $this->translateJoins();
+        }
 
         // build the where statements
         if ($wheres = $this->attr('wheres'))
