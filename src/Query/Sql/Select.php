@@ -58,6 +58,11 @@ class Select extends SelectBase implements FetchableInterface
      */
     protected $forwardKey = false;
 
+    /*
+     * returns the first result
+     * */
+    protected $onlyOne = false;
+
     /**
      * Inherit property values from parent query
      *
@@ -603,9 +608,11 @@ class Select extends SelectBase implements FetchableInterface
 
         // when the limit is specified to exactly one result we
         // return directly that one result instead of the entire array
-        if ($this->limit === 1)
+        if ($this->onlyOne)
         {
             $results = reset($results);
+            // reset this flag
+            $this->onlyOne = false;
         }
 
         return $results;
@@ -634,6 +641,7 @@ class Select extends SelectBase implements FetchableInterface
      */
     public function one()
     {
+    	$this->onlyOne = true;
         return $this->limit(0, 1)->get();
     }
 
