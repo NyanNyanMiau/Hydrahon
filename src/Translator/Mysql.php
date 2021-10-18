@@ -21,6 +21,7 @@ use ClanCats\Hydrahon\Query\Sql\Drop;
 use ClanCats\Hydrahon\Query\Sql\Truncate;
 use ClanCats\Hydrahon\Query\Sql\Func;
 use ClanCats\Hydrahon\Query\Sql\Exists;
+use ClanCats\Hydrahon\Query\Sql\Field;
 
 use ClanCats\Hydrahon\Query\Sql\Show;
 
@@ -160,6 +161,17 @@ class Mysql implements TranslatorInterface
         $this->parameters = array();
     }
 
+    protected function isField($field)
+    {
+        return $field instanceof Field;
+    }
+
+    protected function isParam($value)
+    {
+        //  || $value instanceof Keyword
+        return !($value instanceof Expression || $value instanceof Func || $value instanceof Field);
+    }
+
     /**
      * Adds a parameter to the builder
      *
@@ -180,16 +192,35 @@ class Mysql implements TranslatorInterface
      */
     protected function param(&$value)
     {
-        if (!$this->isExpression($value))
+        if ($this->isParam($value))
         {
         	if ( is_array($value) ){
         		$value = reset($value);
         	}
-        	if ( strtolower($value) === "null"){ return 'null'; } // conditions with "field is ?" - lead to syntax error if "null" is added per "?" = "null"
-            $this->addParameter($value); return '?';
+        	// conditions lead to syntax error if "null" is added per "?"
+        	if ( strtolower($value) === 'null') {
+        	    return 'null'; // add to query instead of paramters
+        	}
+            $this->addParameter($value);
+            return '?';
+        }
+        return $value;
+    }
+
+    /**
+     * Translate a parameter
+     *
+     * @return string
+     */
+    protected function translateParam($param)
+    {
+        if ($this->isParam($param)) {
+            return $this->param($param);
+        } else if ($this->isField($param)) {
+            return $this->escape($param);
         }
 
-        return $value;
+        return $param;
     }
 
     /**
@@ -254,11 +285,25 @@ class Mysql implements TranslatorInterface
             {
             	return "(" . $this->escapeSelect($string) . ")";
             }
+            else if ($this->isField($string))
+            {
+                $field = (string)$string;
+                // cbx - we need to have a tableprefix if its not an alias
+                if (!$this->isAlias($field)) {
+                    if (strpos($field, ".") === false) {
+                        $field = $this->attr("fieldTablePrefix") . "." . $field;
+                    }
 
+                    if ($this->cbx_isFieldEncrypted($field)) {
+                        return $this->escape( new Func('aes_decrypt', $field) );
+                    }
+                }
+                $string = $field;
+            }
             elseif ( $this->isStdClass($string) )
             {
             	// cbx - we use this until param class injected
-            	return $this->param($string->value);
+            	return $this->translateParam($string->value);
             }
 
             else
@@ -333,7 +378,7 @@ class Mysql implements TranslatorInterface
 
         		@List(&$field, $aes_key) = $arguments;
         		$aes_key = '__AES_KEY__';
-        		$f = $buffer . $this->escape($field) . ", " . $this->param($aes_key) . ")";
+        		$f = $buffer . $this->escape($field) . ", " . $this->translateParam($aes_key) . ")";
         		$f = sprintf($wrap, $f);
         	break;
 
@@ -495,18 +540,15 @@ class Mysql implements TranslatorInterface
     {
         foreach ($params as $key => $param)
         {
-        	if ( is_string($key) && $this->cbx_isFieldEncrypted($key) )
-			{
+        	if ( is_string($key) && $this->cbx_isFieldEncrypted($key) ) {
 				$aes_key = "__AES_KEY__";
-				$params[$key] = 'aes_encrypt(' . $this->param($param) . ', ' . $this->param($aes_key) . ')';
+				$params[$key] = 'aes_encrypt(' . $this->translateParam($param) . ', ' . $this->translateParam($aes_key) . ')';
 			}
-			elseif ($this->isSelect($param))
-			{
+			elseif ($this->isSelect($param)) {
 				$params[$key] = "(" . $this->escapeSelect($param) . ")";
 			}
-
-			else{
-				$params[$key] = $this->param($param);
+			else {
+				$params[$key] = $this->translateParam($param);
 			}
         }
 
@@ -573,14 +615,14 @@ class Mysql implements TranslatorInterface
         	if ( $this->cbx_isFieldEncrypted($key) )
         	{
         		$aes_key = "__AES_KEY__";
-        		$build .= 'aes_encrypt(' . $this->param($value) . ', ' . $this->param($aes_key) . ')';
+        		$build .= 'aes_encrypt(' . $this->translateParam($value) . ', ' . $this->translateParam($aes_key) . ')';
         	}else{
 
         		if ( is_array($value) ){
         			trigger_error("Array passed as value: serialize before! ". $build, E_USER_ERROR);
         		}
 
-        		$build .= $this->param($value);
+        		$build .= $this->translateParam($value);
         	}
         	$build .= ', ';
         }
@@ -864,19 +906,15 @@ class Mysql implements TranslatorInterface
 
             $isNumber = is_int($condition[3]) || is_float($condition[3]);
 
-            if ( is_string($column) )
-            {
+            if ( is_string($column) ) {
             	// cbx - we need to have a tableprefix if its not an alias
-            	if ( !$this->isAlias($column) )
-            	{
-            		if ( strpos($column, ".") === false ){
+            	if (!$this->isAlias($column)) {
+            		if (strpos($column, ".") === false) {
             			$column = $this->attr("fieldTablePrefix") . "." . $column;
             		}
 
-            		if ( $this->cbx_isFieldEncrypted($column) )
-            		{
-            			$column = new Func('aes_decrypt', $column); // , (object)["value"=>"__AES_KEY__"]
-            		//             		$alias = !is_null($alias) ? $alias : $testField;
+            		if ($this->cbx_isFieldEncrypted($column)) {
+            			$column = new Func('aes_decrypt', $column);
             		}
             	}
             }
@@ -892,7 +930,7 @@ class Mysql implements TranslatorInterface
             {
             	if ( $condition_2 === "between" ){
             		@List($v1, $v2) = $condition[3];
-            		$condition_3 = $this->param($v1) . ' and ' .$this->param($v2);
+            		$condition_3 = $this->translateParam($v1) . ' and ' .$this->translateParam($v2);
             	}else{
                 	$condition_3 = '(' . $this->parameterize($condition[3]) . ')';
             	}
@@ -902,7 +940,7 @@ class Mysql implements TranslatorInterface
             	if ( is_object($condition[3]) ){
             		$condition_3 = $this->escape($condition[3]);
             	}else{
-                	$condition_3 = $this->param($condition[3]);
+                	$condition_3 = $this->translateParam($condition[3]);
             	}
 
             }

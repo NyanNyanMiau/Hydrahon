@@ -16,6 +16,7 @@ use ClanCats\Hydrahon\Query\Sql\Delete;
 use ClanCats\Hydrahon\Query\Sql\Drop;
 use ClanCats\Hydrahon\Query\Sql\Truncate;
 use ClanCats\Hydrahon\Query\Sql\Table;
+use ClanCats\Hydrahon\Query\Sql\Field;
 
 use ClanCats\Hydrahon\Query\Sql\Show;
 
@@ -120,4 +121,17 @@ class Sql extends BaseQuery
     {
     	return $this->table($table)->show();
     }
+
+
+    /**
+     * Forces an operand to be treated as a field
+     *
+     * @param string                $field
+     * @return Field
+     */
+    final public function field(string $field): Field
+    {
+        return new Field($field);
+    }
+
 }
