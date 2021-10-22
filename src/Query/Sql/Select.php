@@ -312,7 +312,8 @@ class Select extends SelectBase implements FetchableInterface
     		$alias = $alias ? $alias : $this->escape(trim($string[1]));
     	}
     	if (!$alias){
-    		$alias = end(explode(".",$field));
+    	    $p = explode(".",$field);
+    		$alias = end($p);
     	}
     	$this->addField(new Func('aes_decrypt', $field, (Object)["value"=>$key]), $alias); return $this;
     }
