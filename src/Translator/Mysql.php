@@ -374,11 +374,24 @@ class Mysql implements TranslatorInterface
         switch ($function->name())
         {
         	case 'aes_decrypt':
-        		$wrap = 'convert(%s using utf8)';
 
-        		@List(&$field, $aes_key) = $arguments;
-        		$aes_key = '__AES_KEY__';
-        		$f = $buffer . $this->escape($field) . ", " . $this->translateParam($aes_key) . ")";
+        	    @List(&$field, $options) = $arguments; // no options atm.
+
+        	    $escField = $this->escape($field);
+        	    $aes_key = '__AES_KEY__';
+        	    // convert req for prober likes, but binary data shouldnt converted
+        	    // is it only in conditions required? and should avoided in field list ?
+        	    // 1) special case: field with binary data, must not converted
+        	    //  -  for ease field with ENCRYPTED binary data should named binary or start with binary (i.e mytable.binary or mytable.binaryData) at least
+                // use escaped variant because its already checks for objects and such
+        	    $chkfield = explode('.', $escField);
+        	    if (strpos(end($chkfield), '`binary') === 0) {
+        	        $wrap = '%s';
+        	    } else {
+        	        $wrap = 'convert(%s using utf8)';
+        	    }
+
+        	    $f = $buffer . $escField. ", " . $this->translateParam($aes_key) . ")";
         		$f = sprintf($wrap, $f);
         	break;
 
@@ -436,11 +449,12 @@ class Mysql implements TranslatorInterface
 
         	case 'cast':
         		$field = $arguments[0];
+        		$type = $arguments[1];
         		$f = is_string($field) && $this->cbx_isFieldEncrypted($field)
 		        		? $this->escape(new Func('aes_decrypt', $field))
 		        		: $this->escape($field);
 
-		        $f = $buffer . $f . ' as signed)';
+		        $f = $buffer . $f . " as $type)";
         		break;
 
         	// just a try, else we need to add all functions, to decide where is the field
