@@ -287,9 +287,9 @@ class Select extends SelectBase implements FetchableInterface
      * @param string                $alias
      * @return self The current query builder.
      */
-    public function addFieldEncrypt($value="", $key = '__AES_KEY__')
+    public function addFieldEncrypt($field)
     {
-    	$this->addField(new Func('aes_encrypt', (Object)["value"=>$value], (Object)["value"=>$key])); return $this;
+        $this->addField(new Func('aes_encrypt', (Object)["value"=>$field])); return $this;
     }
 
 
@@ -302,7 +302,7 @@ class Select extends SelectBase implements FetchableInterface
      * @param string                $alias
      * @return self The current query builder.
      */
-    public function addFieldDecrypt($field, $key = "__AES_KEY__", $alias = null)
+    public function addFieldDecrypt($field, $alias = null)
     {
     	// remove "as" from string
     	if (strpos($field, ' as ') !== false)
@@ -315,7 +315,7 @@ class Select extends SelectBase implements FetchableInterface
     	    $p = explode(".",$field);
     		$alias = end($p);
     	}
-    	$this->addField(new Func('aes_decrypt', $field, (Object)["value"=>$key]), $alias); return $this;
+    	$this->addField(new Func('aes_decrypt', $field), $alias); return $this;
     }
 
     /**
