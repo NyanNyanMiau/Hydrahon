@@ -1124,16 +1124,14 @@ class Mysql implements TranslatorInterface
 
 
             // cbx - we need to have a tableprefix
-            if ( strpos($column, ".") === false ){
+             if (is_string($column) && strpos($column, ".") === false) {
             	$column = $this->attr("fieldTablePrefix") . "." . $column;
             }
 
-            if ( is_string($column) && $this->cbx_isFieldEncrypted($column) )
-            {
+            if (is_string($column) && $this->cbx_isFieldEncrypted($column)) {
             	$column = new Func('aes_decrypt', $column); // (object)["value"=>"__AES_KEY__"]
-
             	$column = $this->escape($column) . ' collate utf8_general_ci';
-            }else{
+            } else {
             	$column = $this->escape($column);
             }
 
