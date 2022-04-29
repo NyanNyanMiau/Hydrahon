@@ -375,7 +375,8 @@ class Mysql implements TranslatorInterface
         {
         	case 'aes_decrypt':
 
-        	    @List(&$field, $options) = $arguments; // no options atm.
+        	    $field = & $arguments[0];
+        	    $options = isset($arguments[1]) ? $arguments[1] : [];
 
         	    $escField = $this->escape($field);
         	    $aes_key = '__AES_KEY__';
@@ -408,7 +409,8 @@ class Mysql implements TranslatorInterface
         			throw new Exception("only 2 parameters expected, use param2 as keyed array, options avail [distinct, orderby, separator]");
         		}
 
-        		@list(&$field, $options) = $arguments;
+        		$field = & $arguments[0];
+        		$options = isset($arguments[1]) ? $arguments[1] : [];
         		$distinct  = isset($options["distinct"]) 	? $options["distinct"] : false;
         		$orderby   = isset($options["orderby"]) 	? @list($sort, $dir) = explode(" ", $options["orderby"]) : false;
         		$separator = isset($options["separator"]) 	? $options["separator"] : false;
@@ -428,7 +430,8 @@ class Mysql implements TranslatorInterface
         	case 'str_to_date':
         	case 'from_unixtime':
 
-        		@List(&$field, $datestring) = $arguments;
+        	    $field = & $arguments[0];
+        	    $datestring = isset($arguments[1]) ? $arguments[1] : [];
         		$field = is_string($field) && $this->cbx_isFieldEncrypted($field)
         				 ? $this->escape(new Func('aes_decrypt', $field))
 						 : $this->escape($field);
