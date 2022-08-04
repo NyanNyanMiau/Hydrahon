@@ -943,23 +943,21 @@ class Mysql implements TranslatorInterface
 
             // when we have an array as where values we have
             // to parameterize them
-            if (is_array($condition[3]))
-            {
-            	if ( $condition_2 === "between" ){
-            		@List($v1, $v2) = $condition[3];
-            		$condition_3 = $this->translateParam($v1) . ' and ' .$this->translateParam($v2);
-            	}else{
-                	$condition_3 = '(' . $this->parameterize($condition[3]) . ')';
-            	}
-
+            if (is_Object($condition[3])) {
+                $param = $condition[3]->value;
             } else {
+                $param = $condition[3];
+            }
 
-            	if ( is_object($condition[3]) ){
-            		$condition_3 = $this->escape($condition[3]);
-            	}else{
-                	$condition_3 = $this->translateParam($condition[3]);
-            	}
-
+            if ($condition_2 === "between") {
+                @List ($v1, $v2) = $param;
+                $condition_3 = $this->translateParam($v1) . ' and ' . $this->translateParam($v2);
+            }
+            else if ($condition_2 === "in") {
+                $condition_3 = '(' . $this->parameterize($param) . ')';
+            }
+            else {
+                $condition_3 = $this->translateParam($param);
             }
 
             // implode the beauty
@@ -1133,7 +1131,9 @@ class Mysql implements TranslatorInterface
 
             if (is_string($column) && $this->cbx_isFieldEncrypted($column)) {
             	$column = new Func('aes_decrypt', $column); // (object)["value"=>"__AES_KEY__"]
-            	$column = $this->escape($column) . ' collate utf8_general_ci';
+            	// added length to sort string "9" before "100"
+            	// no performance test done
+            	$column = "CAST(" . $this->escape($column) . " AS SIGNED) $direction, " . $this->escape($column) . ' collate utf8_general_ci';
             } else {
             	$column = $this->escape($column);
             }
