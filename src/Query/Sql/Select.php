@@ -712,8 +712,13 @@ class Select extends SelectBase implements FetchableInterface
             $field = new Expression('*');
         }
 
+        $prevFields = $this->fields;
+
         // return the column
-        return (int) $this->column(new Func('count', $field));
+        $c = (int) $this->column(new Func('count', $field));
+
+        $this->fields = $prevFields;
+        return $c;
     }
 
     /**
