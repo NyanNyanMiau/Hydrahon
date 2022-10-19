@@ -953,7 +953,7 @@ class Mysql implements TranslatorInterface
                 @List ($v1, $v2) = $param;
                 $condition_3 = $this->translateParam($v1) . ' and ' . $this->translateParam($v2);
             }
-            else if ($condition_2 === "in") {
+            else if ($condition_2 === "in" || $condition_2 === "not in") {
                 $condition_3 = '(' . $this->parameterize($param) . ')';
             }
             else {
