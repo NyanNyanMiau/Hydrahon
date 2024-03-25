@@ -1,17 +1,18 @@
-<?php namespace ClanCats\Hydrahon\Translator;
+<?php
+
+namespace ClanCats\Hydrahon\Translator;
 
 /**
  * Mysql query translator
- **
- * @package         Hydrahon
- * @copyright       2015 Mario Döring
+ * *
+ *
+ * @package Hydrahon
+ * @copyright 2015 Mario Döring, 2017-2023 jens planitzer @ i1box
  */
-
 use ClanCats\Hydrahon\BaseQuery;
 use ClanCats\Hydrahon\Query\Expression;
 use ClanCats\Hydrahon\TranslatorInterface;
 use ClanCats\Hydrahon\Exception;
-
 use ClanCats\Hydrahon\Query\Sql\Select;
 use ClanCats\Hydrahon\Query\Sql\Insert;
 use ClanCats\Hydrahon\Query\Sql\Replace;
@@ -22,11 +23,11 @@ use ClanCats\Hydrahon\Query\Sql\Truncate;
 use ClanCats\Hydrahon\Query\Sql\Func;
 use ClanCats\Hydrahon\Query\Sql\Exists;
 use ClanCats\Hydrahon\Query\Sql\Field;
-
 use ClanCats\Hydrahon\Query\Sql\Show;
 
 class Mysql implements TranslatorInterface
 {
+
     /**
      * The query parameters
      *
@@ -37,7 +38,8 @@ class Mysql implements TranslatorInterface
     /**
      * The current query attributes
      *
-     * @param array
+     * @param
+     *            array
      */
     protected $attributes = array();
 
@@ -45,7 +47,7 @@ class Mysql implements TranslatorInterface
      * Translate the given query object and return the results as
      * argument array
      *
-     * @param ClanCats\Hydrahon\BaseQuery                 $query
+     * @param ClanCats\Hydrahon\BaseQuery $query
      * @return array
      */
     public function translate(BaseQuery $query)
@@ -54,75 +56,60 @@ class Mysql implements TranslatorInterface
         $this->attributes = $query->attributes();
 
         // handle SQL SELECT queries
-        if ($query instanceof Select)
-        {
+        if ($query instanceof Select) {
             $queryString = $this->translateSelect();
-        }
-        // handle SQL INSERT queries
-        elseif ($query instanceof Replace)
-        {
+        } // handle SQL INSERT queries
+        elseif ($query instanceof Replace) {
             $queryString = $this->translateInsert('replace');
-        }
-        // handle SQL INSERT queries
-        elseif ($query instanceof Insert)
-        {
+        } // handle SQL INSERT queries
+        elseif ($query instanceof Insert) {
             $queryString = $this->translateInsert('insert');
-        }
-        // handle SQL UPDATE queries
-        elseif ($query instanceof Update)
-        {
+        } // handle SQL UPDATE queries
+        elseif ($query instanceof Update) {
             $queryString = $this->translateUpdate();
-        }
-        // handle SQL UPDATE queries
-        elseif ($query instanceof Delete)
-        {
+        } // handle SQL UPDATE queries
+        elseif ($query instanceof Delete) {
             $queryString = $this->translateDelete();
-        }
-        // handle SQL DROP queries
-        elseif ($query instanceof Drop)
-        {
+        } // handle SQL DROP queries
+        elseif ($query instanceof Drop) {
             $queryString = $this->translateDrop();
-        }
-        // handle SQL TRUNCATE queries
-        elseif ($query instanceof Truncate)
-        {
+        } // handle SQL TRUNCATE queries
+        elseif ($query instanceof Truncate) {
             $queryString = $this->translateTruncate();
-        }
-        elseif ($query instanceof Exists)
-        {
+        } elseif ($query instanceof Exists) {
             $queryString = $this->translateExists();
-        }
-        elseif ($query instanceof Show)
-        {
-        	$queryString = $this->translateShow();
-        }
-        // everything else is wrong
-        else
-        {
-            throw new Exception('Unknown query type. Cannot translate: '.get_class($query));
+        } elseif ($query instanceof Show) {
+            $queryString = $this->translateShow();
+        } // everything else is wrong
+        else {
+            throw new Exception('Unknown query type. Cannot translate: ' . get_class($query));
         }
 
         // get the query parameters and reset
-        $queryParameters = $this->parameters; $this->clearParameters();
+        $queryParameters = $this->parameters;
+        $this->clearParameters();
 
-        return array($queryString, $queryParameters);
+        return array(
+            $queryString,
+            $queryParameters
+        );
     }
 
     /**
      * Returns the an attribute value for the given key
      *
-     * @param string                $key
+     * @param string $key
      * @return mixed
      */
     protected function attr($key)
     {
-    	return isset($this->attributes[$key]) ? $this->attributes[$key] : null;
+        return isset($this->attributes[$key]) ? $this->attributes[$key] : null;
     }
 
     /**
      * Check if the given argument is an sql expression
      *
-     * @param mixed                 $expression
+     * @param mixed $expression
      * @return bool
      */
     protected function isExpression($expression)
@@ -133,7 +120,7 @@ class Mysql implements TranslatorInterface
     /**
      * Check if the given argument is an sql function
      *
-     * @param mixed                 $expression
+     * @param mixed $expression
      * @return bool
      */
     protected function isFunction($function)
@@ -143,12 +130,12 @@ class Mysql implements TranslatorInterface
 
     protected function isSelect($select)
     {
-    	return $select instanceof Select;
+        return $select instanceof Select;
     }
 
-
-    protected function isStdClass($param){
-    	return $param instanceof \stdClass;
+    protected function isStdClass($param)
+    {
+        return $param instanceof \stdClass;
     }
 
     /**
@@ -168,8 +155,8 @@ class Mysql implements TranslatorInterface
 
     protected function isParam($value)
     {
-        //  || $value instanceof Keyword
-        return !($value instanceof Expression || $value instanceof Func || $value instanceof Field);
+        // || $value instanceof Keyword
+        return ! ($value instanceof Expression || $value instanceof Func || $value instanceof Field);
     }
 
     /**
@@ -177,6 +164,7 @@ class Mysql implements TranslatorInterface
      *
      * - CBX - added using of reference
      * - @todo allow to pass parameter type
+     *
      * @return void
      */
     protected function addParameter(&$value)
@@ -187,20 +175,19 @@ class Mysql implements TranslatorInterface
     /**
      * creates an parameter and adds it
      *
-     * @param mixed         $value
+     * @param mixed $value
      * @return string
      */
     protected function param(&$value)
     {
-        if ($this->isParam($value))
-        {
-        	if ( is_array($value) ){
-        		$value = reset($value);
-        	}
-        	// conditions lead to syntax error if "null" is added per "?"
-        	if ( strtolower($value) === 'null') {
-        	    return 'null'; // add to query instead of paramters
-        	}
+        if ($this->isParam($value)) {
+            if (is_array($value)) {
+                $value = reset($value);
+            }
+            // conditions lead to syntax error if "null" is added per "?"
+            if (strtolower($value) === 'null') {
+                return 'null'; // add to query instead of paramters
+            }
             $this->addParameter($value);
             return '?';
         }
@@ -218,6 +205,8 @@ class Mysql implements TranslatorInterface
             return $this->param($param);
         } else if ($this->isField($param)) {
             return $this->escape($param);
+        } else if ($this->isFunction($param)) {
+            return $this->escapeFunction($param);
         }
 
         return $param;
@@ -226,102 +215,88 @@ class Mysql implements TranslatorInterface
     /**
      * Filters the parameters removes the keys and Expressions
      *
-     * @param array         $parameters
+     * @param array $parameters
      * @return array
      */
     protected function filterParameters($parameters)
     {
-        return array_values(array_filter($parameters, function ($item)
-        {
-            return !$this->isExpression($item);
+        return array_values(array_filter($parameters, function ($item) {
+            return ! $this->isExpression($item);
         }));
     }
 
     function escapeSelect($select)
     {
-    	$translator = new static;
+        $translator = new static();
 
-    	// translate the subselect
-    	@list($subQuery, $subQueryParameters) = $translator->translate( $select );
+        // translate the subselect
+        @list ($subQuery, $subQueryParameters) = $translator->translate($select);
 
-    	// merge the parameters
-    	foreach($subQueryParameters as $parameter)
-    	{
-    		$this->addParameter($parameter);
-    	}
+        // merge the parameters
+        foreach ($subQueryParameters as $parameter) {
+            $this->addParameter($parameter);
+        }
 
-    	return $subQuery;
+        return $subQuery;
     }
-
 
     /**
      * Escape / wrap an string for sql
      *
-     * @param string|object    $string
-     * @param array                   $backpass add type="table, field, alias" array of keys and ref vars ["alias"=> &$alias]
+     * @param string|object $string
+     * @param array $backpass
+     *            add type="table, field, alias" array of keys and ref vars ["alias"=> &$alias]
      */
     protected function escape($string)
     {
-        if (is_object($string))
-        {
-            if ($this->isExpression($string))
-            {
-            	$aes_key = "__AES_KEY__";
-            	// @todo replace use of __AES_KEY__ with ? and add to parameters
-            	$aParts = explode($aes_key, $string->value());
-            	if ( count($aParts) > 1 ){
-            		for ($i=0; $i< count($aParts); $i++){
-            			$this->addParameter($aes_key);
-            		}
-            		return implode("?", $aParts);
-            	}
+        if (is_object($string)) {
+            if ($this->isExpression($string)) {
+                $aes_key = "__AES_KEY__";
+                // @todo replace use of __AES_KEY__ with ? and add to parameters
+                $aParts = explode($aes_key, $string->value());
+                if (count($aParts) > 1) {
+                    for ($i = 0; $i < count($aParts); $i ++) {
+                        $this->addParameter($aes_key);
+                    }
+                    return implode("?", $aParts);
+                }
                 return $string->value();
-            }
-            elseif ($this->isFunction($string))
-            {
+            } elseif ($this->isFunction($string)) {
                 return $this->escapeFunction($string);
-            }
-            elseif ($this->isSelect($string))
-            {
-            	return "(" . $this->escapeSelect($string) . ")";
-            }
-            else if ($this->isField($string))
-            {
-                $field = (string)$string;
+            } elseif ($this->isSelect($string)) {
+                return "(" . $this->escapeSelect($string) . ")";
+            } else if ($this->isField($string)) {
+                $field = (string) $string;
                 // cbx - we need to have a tableprefix if its not an alias
-                if (!$this->isAlias($field)) {
+                $columnBackup = $field;
+                if (! $this->isAlias($field)) {
                     if (strpos($field, ".") === false) {
                         $field = $this->attr("fieldTablePrefix") . "." . $field;
                     }
-
                     if ($this->cbx_isFieldEncrypted($field)) {
-                        return $this->escape( new Func('aes_decrypt', $field) );
+                        return $this->escape(new Func('aes_decrypt', $field));
+                    } else {
+                        $field = $columnBackup;
                     }
                 }
                 $string = $field;
+            } elseif ($this->isStdClass($string)) {
+                // cbx - we use this until param class injected
+                return $this->translateParam($string->value);
             }
-            elseif ( $this->isStdClass($string) )
-            {
-            	// cbx - we use this until param class injected
-            	return $this->translateParam($string->value);
-            }
-
-            else
-            {
+            else {
                 throw new Exception('Cannot translate object of class: ' . get_class($string));
             }
         }
 
         // if distinct used with field count(distinct field), prevent escape
-        if (strpos($string, 'distinct ') === 0)
-        {
-        	$string = explode('distinct ', $string);
-        	return 'distinct ' . $this->escape(trim($string[1]));
+        if (strpos($string, 'distinct ') === 0) {
+            $string = explode('distinct ', $string);
+            return 'distinct ' . $this->escape(trim($string[1]));
         }
 
         // the string might contain an 'as' statement that we wil have to split.
-        if (strpos($string, ' as ') !== false)
-        {
+        if (strpos($string, ' as ') !== false) {
             $string = explode(' as ', $string);
 
             return $this->escape(trim($string[0])) . ' as ' . $this->escape(trim($string[1]));
@@ -329,12 +304,10 @@ class Mysql implements TranslatorInterface
 
         // it also might contain dott seperations we have to split
         // could be columns with dots in name
-        if (strpos($string, '.') !== false)
-        {
+        if (strpos($string, '.') !== false) {
             $string = explode('.', $string);
-            foreach ($string as $key => $item)
-            {
-            	$string[$key] = $this->escapeIdentifier($item);
+            foreach ($string as $key => $item) {
+                $string[$key] = $this->escapeIdentifier($item);
             }
 
             return implode('.', $string);
@@ -352,13 +325,19 @@ class Mysql implements TranslatorInterface
      */
     public function escapeIdentifier($identifier)
     {
-        return '`' . str_replace(array('`', "\0"), array('``',''), $identifier) . '`';
+        return '`' . str_replace(array(
+            '`',
+            "\0"
+        ), array(
+            '``',
+            ''
+        ), $identifier) . '`';
     }
 
     /**
      * Escapes an sql function object
      *
-     * @param Func              $function
+     * @param Func $function
      * @return string
      */
     protected function escapeFunction($function)
@@ -370,107 +349,125 @@ class Mysql implements TranslatorInterface
         /*
          * cbx - added custom behaviour of functions,
          * - test passed table fields are encrypted
-         * */
-        switch ($function->name())
-        {
-        	case 'aes_decrypt':
+         */
+        switch ($function->name()) {
+            case 'aes_decrypt':
 
-        	    $field = & $arguments[0];
-        	    $options = isset($arguments[1]) ? $arguments[1] : [];
+                $field = &$arguments[0];
+                // "cast" => false/ char/int
+                $options = isset($arguments[1]) ? $arguments[1] : [];
+                if (! isset($options["cast"])) {
+                    $options["cast"] = false; //"char";
+                }
 
-        	    $escField = $this->escape($field);
-        	    $aes_key = '__AES_KEY__';
-        	    // convert req for prober likes, but binary data shouldnt converted
-        	    // is it only in conditions required? and should avoided in field list ?
-        	    // 1) special case: field with binary data, must not converted
-        	    //  -  for ease field with ENCRYPTED binary data should named binary or start with binary (i.e mytable.binary or mytable.binaryData) at least
+                $escField = $this->escape($field);
+                $aes_key = '__AES_KEY__';
+                // convert req for prober likes, but binary data shouldnt converted
+                // is it only in conditions required? and should avoided in field list ?
+                // 1) special case: field with binary data, must not converted
+                // - for ease field with ENCRYPTED binary data should named binary or start with binary (i.e mytable.binary or mytable.binaryData) at least
                 // use escaped variant because its already checks for objects and such
-        	    $chkfield = explode('.', $escField);
-        	    if (strpos(end($chkfield), '`binary') === 0) {
-        	        $wrap = '%s';
-        	    } else {
-        	        $wrap = 'convert(%s using utf8)';
-        	    }
+                $chkfield = explode('.', $escField);
+                if (strpos(end($chkfield), '`binary') === 0) {
+                    $wrap = '%s';
+                } else {
+//                  $wrap = 'convert(%s using utf8)'; // this seems to be wrong, there are unicode i.e "(U+1F6A9)" wich wasnot returned correctly // because it was 4byte and utf8mb4 is needed
+                    // pfff seems only order by needs cast, cant search for redflag if cast to char either
+                    if (! $options["cast"]) {
+                        $wrap = "%s";
+                    } else {
+                        if ($options["cast"] === "char") {
+//                             $wrap = "CAST(%s AS char)";
+//                          $wrap = "CAST(%s AS char) COLLATE utf8_general_ci"; // default collate not needed
+//                          $wrap = "CAST(%s AS char CHARACTER SET utf8mb4) COLLATE utf8mb4_general_ci"; // possible utf8mb4 overcome
+                         $wrap = "CAST(%s AS char)";
+                        } else {
+                            $wrap = "CAST(%s AS {$options["cast"]})"; // just cast them as char maybe better
+                        }
+                    }
+                }
 
-        	    $f = $buffer . $escField. ", " . $this->translateParam($aes_key) . ")";
-        		$f = sprintf($wrap, $f);
-        	break;
+                $f = $buffer . $escField . ", " . $this->translateParam($aes_key) . ")";
+                $f = sprintf($wrap, $f);
+                break;
 
+            /*
+             * group_concat( distinct field1` order by `field2` seperator ',' )
+             * note: max return length of group_concat is default 1024 chars
+             *
+             * @note dont use group_concat to stick uids
+             */
+            case 'group_concat':
 
-        	/*
-        	 * group_concat( distinct field1` order by `field2` seperator ',' )
-        	 * note: max return length of group_concat is default 1024 chars
-        	 *
-        	 * @note dont use group_concat to stick uids
-        	 */
-        	case 'group_concat':
+                if (count($arguments) > 2) {
+                    throw new Exception("only 2 parameters expected, use param2 as keyed array, options avail [distinct, orderby, separator]");
+                }
 
-        		if (count($arguments) > 2) {
-        			throw new Exception("only 2 parameters expected, use param2 as keyed array, options avail [distinct, orderby, separator]");
-        		}
+                $field = &$arguments[0];
+                $options = isset($arguments[1]) ? $arguments[1] : [];
+                $distinct = isset($options["distinct"]) ? $options["distinct"] : false;
+                $orderby = isset($options["orderby"]) ? @list ($sort, $dir) = explode(" ", $options["orderby"]) : false;
+                $separator = isset($options["separator"]) ? $options["separator"] : false;
 
-        		$field = & $arguments[0];
-        		$options = isset($arguments[1]) ? $arguments[1] : [];
-        		$distinct  = isset($options["distinct"]) 	? $options["distinct"] : false;
-        		$orderby   = isset($options["orderby"]) 	? @list($sort, $dir) = explode(" ", $options["orderby"]) : false;
-        		$separator = isset($options["separator"]) 	? $options["separator"] : false;
+                $f = ($distinct ? " distinct " : "") . (is_string($field) && $this->cbx_isFieldEncrypted($field) ? $this->escape(new Func('aes_decrypt', $field)) : $this->escape($field)) . ($orderby ? " " . $this->escape($sort) . " " . ($dir ? $dir : "asc") : "") . ($separator ? " separator '" . $separator . "'" : "");
 
-        		$f = 	( $distinct ? " distinct " : "" )
-        				. (
-        						is_string($field) && $this->cbx_isFieldEncrypted($field)
-        						? $this->escape(new Func('aes_decrypt', $field))
-        						: $this->escape($field)
-        				)
-        				. ( $orderby ? " " . $this->escape($sort) . " " . ($dir?$dir:"asc") : "")
-        				. ( $separator? " separator '" . $separator. "'" : "");
+                $f = $buffer . $f . ")";
+                break;
 
-	       		$f = $buffer .$f. ")";
-			break;
+            case 'str_to_date':
+            case 'from_unixtime':
 
-        	case 'str_to_date':
-        	case 'from_unixtime':
+                $field = &$arguments[0];
+                $datestring = isset($arguments[1]) ? $arguments[1] : [];
+                $field = is_string($field) && $this->cbx_isFieldEncrypted($field) ? $this->escape(new Func('aes_decrypt', $field)) : $this->escape($field);
 
-        	    $field = & $arguments[0];
-        	    $datestring = isset($arguments[1]) ? $arguments[1] : [];
-        		$field = is_string($field) && $this->cbx_isFieldEncrypted($field)
-        				 ? $this->escape(new Func('aes_decrypt', $field))
-						 : $this->escape($field);
+                $f = $buffer . $field . ', "' . $datestring . '")';
+                break;
 
-        		$f = $buffer . $field . ', "' . $datestring . '")';
-        		break;
+            // convert a field to a number - mysql stuff don't work as expected
+            case '1*':
 
-        	// convert a field to a number - mysql stuff don't work as expected
-        	case '1*':
+                $field = $arguments[0];
+                $f = is_string($field) && $this->cbx_isFieldEncrypted($field) ? $this->escape(new Func('aes_decrypt', $field)) : $this->escape($field);
 
-        		$field = $arguments[0];
-				$f = is_string($field) && $this->cbx_isFieldEncrypted($field)
-						 ? $this->escape(new Func('aes_decrypt', $field))
-						 : $this->escape($field);
+                $f = $buffer . $f . ')';
+                break;
 
-				$f = $buffer . $f . ')';
-        		break;
+            case 'cast':
+                $field = $arguments[0];
+                $type = $arguments[1];
+                if (is_string($field) && $this->cbx_isFieldEncrypted($field)) {
+                    $f = $this->escape(new Func('aes_decrypt', $field, ["cast" => $type]));
+                } else {
+                    $f = $buffer . $this->escape($field) . " as $type)";
+                }
 
-        	case 'cast':
-        		$field = $arguments[0];
-        		$type = $arguments[1];
-        		$f = is_string($field) && $this->cbx_isFieldEncrypted($field)
-		        		? $this->escape(new Func('aes_decrypt', $field))
-		        		: $this->escape($field);
+                break;
 
-		        $f = $buffer . $f . " as $type)";
-        		break;
+            // just a try, else we need to add all functions, to decide where is the field
+            default:
 
-        	// just a try, else we need to add all functions, to decide where is the field
-        	default:
+                $f = "";
+                if (count($arguments)) {
 
-        		foreach($arguments as &$argument){
-        			$argument = is_string($argument) && $this->cbx_isFieldEncrypted($argument)
-        						 ? $this->escape(new Func('aes_decrypt', $argument))
-								 : $this->escape($argument);
-//         			$argument = $this->escape($argument);
-        		}
-        		$f = $buffer . implode(', ', $arguments) . ')';
-        	break;
+                    foreach ($arguments as $i => &$argument) {
+                        if ($i == 0) {
+                            // this should be a field
+                            $argument = is_string($argument) && $this->cbx_isFieldEncrypted($argument) ? $this->escape(new Func('aes_decrypt', $argument)) : $argument;
+                            // : ( $argument === "*" ? $argument : $this->escape($argument) );
+                        } else {
+                            $argument = $this->translateParam($argument);
+                        }
+
+                        if ($argument !== null) {
+                            $f .= ($f ? ', ' : '') . $argument;
+                        }
+                    }
+                    unset($argument);
+
+                    $f = $buffer . $f . ')';
+                }
+                break;
         }
 
         return $f;
@@ -479,13 +476,12 @@ class Mysql implements TranslatorInterface
     /**
      * Escape an array of items an seprate them with a comma
      *
-     * @param array         $array
+     * @param array $array
      * @return string
      */
     protected function escapeList($array)
     {
-        foreach ($array as $key => $item)
-        {
+        foreach ($array as $key => $item) {
             $array[$key] = $this->escape($item);
         }
 
@@ -497,38 +493,33 @@ class Mysql implements TranslatorInterface
      *
      * @return string
      */
-    protected function escapeTable($allowAlias = true, $table=null)
+    protected function escapeTable($allowAlias = true, $table = null)
     {
-    	$database = null;
-    	if ( is_null($table) )
-    	{
-	        $table = $this->attr('table');
-	        $database = $this->attr('database');
-    	}
+        $database = null;
+        if (is_null($table)) {
+            $table = $this->attr('table');
+            $database = $this->attr('database');
+        }
         $buffer = '';
 
-        if (!is_null($database))
-        {
+        if (! is_null($database)) {
             $buffer .= $this->escape($database) . '.';
         }
 
         // when the table is an array we have a table with alias
-        if (is_array($table))
-        {
+        if (is_array($table)) {
             reset($table);
 
             // the table might be a subselect so check that
             // first and compile the select if it is one
-            if ($table[key($table)] instanceof Select)
-            {
-                $translator = new static;
+            if ($table[key($table)] instanceof Select) {
+                $translator = new static();
 
                 // translate the subselect
-                @list($subQuery, $subQueryParameters) = $translator->translate($table[key($table)]);
+                @list ($subQuery, $subQueryParameters) = $translator->translate($table[key($table)]);
 
                 // merge the parameters
-                foreach($subQueryParameters as $parameter)
-                {
+                foreach ($subQueryParameters as $parameter) {
                     $this->addParameter($parameter);
                 }
 
@@ -536,9 +527,8 @@ class Mysql implements TranslatorInterface
             }
 
             // otherwise continue with normal table
-            if ($allowAlias)
-            {
-            	$table = key($table) . ' as ' . $table[key($table)];
+            if ($allowAlias) {
+                $table = key($table) . ' as ' . $table[key($table)];
             } else {
                 $table = key($table);
             }
@@ -550,26 +540,23 @@ class Mysql implements TranslatorInterface
     /**
      * Convert data to parameters and bind them to the query
      *
-     * @param array         $params
+     * @param array $params
      * @return string
      */
     protected function parameterize($params)
     {
-        foreach ($params as $key => $param)
-        {
-        	if ( is_string($key) && $this->cbx_isFieldEncrypted($key) ) {
-				$aes_key = "__AES_KEY__";
-				$params[$key] = 'aes_encrypt(' . $this->translateParam($param) . ', ' . $this->translateParam($aes_key) . ')';
-			}
-			elseif ($this->isSelect($param)) {
-				$params[$key] = "(" . $this->escapeSelect($param) . ")";
-			}
-			else {
-				$params[$key] = $this->translateParam($param);
-			}
+        foreach ($params as $key => $param) {
+            if (is_string($key) && $this->cbx_isFieldEncrypted($key)) {
+                $aes_key = "__AES_KEY__";
+                $params[$key] = 'aes_encrypt(' . $this->translateParam($param) . ', ' . $this->translateParam($aes_key) . ')';
+            } elseif ($this->isSelect($param)) {
+                $params[$key] = "(" . $this->escapeSelect($param) . ")";
+            } else {
+                $params[$key] = $this->translateParam($param);
+            }
         }
 
-        return implode(', ', $params);
+        return count($params) ? implode(', ', $params) : 'null';
     }
 
     /*
@@ -587,8 +574,7 @@ class Mysql implements TranslatorInterface
 
         $build .= ' into ' . $this->escapeTable(false) . ' ';
 
-        if (!$valueCollection = $this->attr('values'))
-        {
+        if (! $valueCollection = $this->attr('values')) {
             throw new Exception('Cannot build insert query without values.');
         }
 
@@ -598,13 +584,15 @@ class Mysql implements TranslatorInterface
         $build .= '(' . $this->escapeList(array_keys(reset($valueCollection))) . ') values ';
 
         // add the array values.
-        foreach ($valueCollection as $values)
-        {
+        foreach ($valueCollection as $values) {
             $build .= '(' . $this->parameterize($values) . '), ';
         }
 
         // cut the last comma away
-        return substr($build, 0, -2);
+        if (substr($build, -2) == ', ') {
+            $build = substr($build, 0, -2);
+        }
+        return $build;
     }
 
     /**
@@ -617,53 +605,47 @@ class Mysql implements TranslatorInterface
         $build = 'update ' . $this->escapeTable();
 
         // build the join statements
-        if ($this->attr('joins'))
-        {
-        	$build .= $this->translateJoins();
+        if ($this->attr('joins')) {
+            $build .= $this->translateJoins();
         }
 
         $build .= ' set ';
 
         // add the array values.
-        foreach ($this->attr('values') as $key => $value)
-        {
-        	$build .= $this->escape($key) . ' = ';
+        foreach ($this->attr('values') as $key => $value) {
+            $build .= $this->escape($key) . ' = ';
 
-        	if ( $this->cbx_isFieldEncrypted($key) )
-        	{
-        		$aes_key = "__AES_KEY__";
-        		$build .= 'aes_encrypt(' . $this->translateParam($value) . ', ' . $this->translateParam($aes_key) . ')';
-        	}else{
+            if ($this->cbx_isFieldEncrypted($key)) {
+                $aes_key = "__AES_KEY__";
+                $build .= 'aes_encrypt(' . $this->translateParam($value) . ', ' . $this->translateParam($aes_key) . ')';
+            } else {
+                if (is_array($value)) {
+                    trigger_error("Array passed as value: serialize before! " . $build, E_USER_ERROR);
+                }
 
-        		if ( is_array($value) ){
-        			trigger_error("Array passed as value: serialize before! ". $build, E_USER_ERROR);
-        		}
-
-        		$build .= $this->translateParam($value);
-        	}
-        	$build .= ', ';
+                $build .= $this->translateParam($value);
+            }
+            $build .= ', ';
         }
 
         // cut away the last comma and space
-        $build = substr($build, 0, -2);
+        if (substr($build, -2) == ', ') {
+            $build = substr($build, 0, -2);
+        }
 
         // build the where statements
-        if ($wheres = $this->attr('wheres'))
-        {
+        if ($wheres = $this->attr('wheres')) {
             $build .= $this->translateWhere($wheres);
         }
 
         // build the order statement
-        if ($this->attr('orders'))
-        {
-        	$build .= $this->translateOrderBy();
+        if ($this->attr('orders')) {
+            $build .= $this->translateOrderBy();
         }
 
-
         // build offset and limit
-        if ($this->attr('limit'))
-        {
-             $build .= $this->translateLimit();
+        if ($this->attr('limit')) {
+            $build .= $this->translateLimit();
         }
 
         return $build;
@@ -679,78 +661,65 @@ class Mysql implements TranslatorInterface
         $build = 'delete ';
 
         // build the join statements
-        if ($this->attr('delete'))
-        {
-        	$build .= $this->escapeList(explode(",", $this->attr('delete')));
+        if ($this->attr('delete')) {
+            $build .= $this->escapeList(explode(",", $this->attr('delete')));
         }
 
         $build .= ' from ' . $this->escapeTable(false);
 
         // build the join statements
-        if ($this->attr('joins'))
-        {
-        	$build .= $this->translateJoins();
+        if ($this->attr('joins')) {
+            $build .= $this->translateJoins();
         }
 
         // build the where statements
-        if ($wheres = $this->attr('wheres'))
-        {
+        if ($wheres = $this->attr('wheres')) {
             $build .= $this->translateWhere($wheres);
         }
 
         // build the order statement
-        if ($this->attr('orders'))
-        {
-        	$build .= $this->translateOrderBy();
+        if ($this->attr('orders')) {
+            $build .= $this->translateOrderBy();
         }
 
         // build offset and limit
-        if ($this->attr('limit'))
-        {
-             $build .= $this->translateLimit();
+        if ($this->attr('limit')) {
+            $build .= $this->translateLimit();
         }
 
         return $build;
     }
 
-
     public function getDecryptionWrapper()
-    {
-
-    }
+    {}
 
     public function getEncryptionWrapper()
-    {
-
-    }
+    {}
 
     // cbx - check if field shall decrypted / encrypted
     function cbx_isFieldEncrypted($field)
     {
-    	global $bEncryptionActive, $aEncryptionConfig;
+        global $bEncryptionActive, $aEncryptionConfig;
 
-    	if (!is_string($field)){
-    		throw new \Exception("Field should be a string:".var_export($field, 1));
-    	}
+        if (! is_string($field)) {
+            throw new \Exception("Field should be a string:" . var_export($field, 1));
+        }
 
-    	// silly coders could have put dots in fieldnames
-    	if ( strpos($field, ".") ){
-    		@list($table, $field) = explode(".", $field);
-    	}else{
-    		$table = $this->attr("table");
-    		if ( is_array($table) ){
-    			$table = key($table);
-    		}
-    	}
-    	// check if its an alias and return db table name
-    	if ( isset($this->attr("flags")["aAliasToTable"][$table]) ){
-    		$table = $this->attr("flags")["aAliasToTable"][$table];
-    	}
+        // silly coders could have put dots in fieldnames
+        if (strpos($field, ".")) {
+            @list ($table, $field) = explode(".", $field);
+        } else {
+            $table = $this->attr("table");
+            if (is_array($table)) {
+                $table = key($table);
+            }
+        }
+        // check if its an alias and return db table name
+        if (isset($this->attr("flags")["aAliasToTable"][$table])) {
+            $table = $this->attr("flags")["aAliasToTable"][$table];
+        }
 
-    	return  $bEncryptionActive
-    			&& isset($aEncryptionConfig[$table])
-    			&& in_array($field, (array)$aEncryptionConfig[$table]);
-
+        return $bEncryptionActive && isset($aEncryptionConfig[$table]) && in_array($field, (array) $aEncryptionConfig[$table]);
     }
 
     /**
@@ -766,41 +735,34 @@ class Mysql implements TranslatorInterface
         // build the selected fields
         $fields = $this->attr('fields');
 
-        if (!empty($fields))
-        {
-            foreach ($fields as $key => $field)
-            {
-                @list($column, $alias) = $field;
+        if (! empty($fields)) {
+            foreach ($fields as $key => $field) {
+                @list ($column, $alias) = $field;
 
                 // cbx - we need the field alone, "as" should always removed before - see addField
-                if ( is_string($column) )
-                {
-                	if ( $this->cbx_isFieldEncrypted($column) )
-                	{
-                		if (!$alias){
-                			$alias = explode(".",$column);
-                			$alias = end($alias);
-                		}
-                		$column = new Func('aes_decrypt', $column);
-                	}
+                if (is_string($column)) {
+                    if ($this->cbx_isFieldEncrypted($column)) {
+                        if (! $alias) {
+                            $alias = explode(".", $column);
+                            $alias = end($alias);
+                        }
+                        $column = new Func('aes_decrypt', $column);
+                    }
                 }
 
-                if (!is_null($alias))
-                {
+                if (! is_null($alias)) {
                     $build .= $this->escape($column) . ' as ' . $this->escape($alias);
-                }
-                else
-                {
+                } else {
                     $build .= $this->escape($column);
                 }
 
                 $build .= ', ';
             }
 
-            $build = substr($build, 0, -2);
-        }
-        else
-        {
+            if (substr($build, -2) == ', ') {
+                $build = substr($build, 0, -2);
+            }
+        } else {
             $build .= '*';
         }
 
@@ -808,38 +770,32 @@ class Mysql implements TranslatorInterface
         $build .= ' from ' . $this->escapeTable();
 
         // build the join statements
-        if ($this->attr('joins'))
-        {
-        	$build .= $this->translateJoins();
+        if ($this->attr('joins')) {
+            $build .= $this->translateJoins();
         }
 
         // build the where statements
-        if ($wheres = $this->attr('wheres'))
-        {
+        if ($wheres = $this->attr('wheres')) {
             $build .= $this->translateWhere($wheres);
         }
 
         // build the groups
-        if ($this->attr('groups'))
-        {
+        if ($this->attr('groups')) {
             $build .= $this->translateGroupBy();
         }
 
         // build the having statements
-        if ($havings = $this->attr('havings'))
-        {
+        if ($havings = $this->attr('havings')) {
             $build .= $this->translateHaving($havings);
         }
 
         // build the order statement
-        if ($this->attr('orders'))
-        {
+        if ($this->attr('orders')) {
             $build .= $this->translateOrderBy();
         }
 
         // build offset and limit
-        if ($this->attr('limit') || $this->attr('offset'))
-        {
+        if ($this->attr('limit') || $this->attr('offset')) {
             $build .= $this->translateLimitWithOffset();
         }
 
@@ -849,7 +805,7 @@ class Mysql implements TranslatorInterface
     /**
      * Translate the where statement into sql
      *
-     * @param array                 $wheres
+     * @param array $wheres
      * @return string
      */
     protected function translateWhere(array $wheres)
@@ -860,7 +816,7 @@ class Mysql implements TranslatorInterface
     /**
      * Translate the having statement into sql
      *
-     * @param array                 $havings
+     * @param array $havings
      * @return string
      */
     protected function translateHaving(array $havings)
@@ -868,72 +824,105 @@ class Mysql implements TranslatorInterface
         return $this->translateConditional('having', $havings);
     }
 
-
     protected function translateFieldDecryption($field)
     {
-    	print_r($this);
-    	throw new Exception(__method__.' - not done yet');
+        print_r($this);
+        throw new Exception(__method__ . ' - not done yet');
     }
 
     /**
      * Translate the conditional statements (where, having) into sql
      *
-     * @param string                $statement The name of the statement ( where, having )
-     * @param array                 $conditions
+     * @param string $statement
+     *            The name of the statement ( where, having )
+     * @param array $conditions
      * @return string
      */
-    protected function translateConditional($statement, $conditions)
+    protected function translateConditional($statement, $conditions, $first=1)
     {
         $build = '';
 
-        foreach ($conditions as $condition)
-        {
+        foreach ($conditions as $idx => $condition) {
             // to make nested wheres possible you can pass an closure
             // wich will create a new query where you can add your nested wheres
-            if (!isset($condition[2]) && isset( $condition[1] ) && $condition[1] instanceof BaseQuery )
-            {
+            if (! isset($condition[2]) && isset($condition[1]) && $condition[1] instanceof BaseQuery) {
                 /** @var array $subConditions The array of $conditions inside the nested query */
                 $subConditions = $condition[1]->attributes()[$statement . 's'];
 
-                $translatedSubConditions = $this->translateConditional($statement, $subConditions);
+                $translatedSubConditions = trim($this->translateConditional($statement, $subConditions, 0));
 
                 // remove the statement from the result (+2 for the space before and after)
-                $translatedSubConditions = substr($translatedSubConditions, strlen($statement) + 2);
+//                 $translatedSubConditions = substr($translatedSubConditions, strlen($statement) + 2);
+//                 $tmp = explode($statement, $translatedSubConditions, 2);
+//                 $translatedSubConditions = isset($tmp[1]) ? $tmp[1] : "";
 
-                if (count($subConditions)>1)
-                {
-	                // The parameters get added by the call of compile where
-	                $build .= ' ' . $condition[0] . ' ( ' . $translatedSubConditions . ' )';
-                }else{
-                	$build .= ' ' . $condition[0] . ' ' . $translatedSubConditions . '';
+//                 if (strlen($build)) {
+//                     print_r([
+//                         $build,
+//                         count($subConditions),
+//                         $condition[0],
+//                         $statement,
+//                         $translatedSubConditions,
+//                         substr($translatedSubConditions, strlen($statement) + 2),
+//                         explode($statement, $translatedSubConditions, 2)[1]
+//                     ]);
+//                 }
+
+//                 if (strpos($translatedSubConditions, $statement) !== false) {
+//                     $translatedSubConditions = explode($statement, $translatedSubConditions, 2)[1];
+//                 }
+
+                if (empty($translatedSubConditions)) {
+                    continue;
+                }
+
+                if (strlen($build) || $first--) {
+                    $build .= ' ' . $condition[0];
+                }
+
+                if (count($subConditions) > 1) {
+                    // The parameters get added by the call of compile where
+                    $build .= ' ( ' . $translatedSubConditions . ' )';
+                } else {
+                    $build .= ' ' . $translatedSubConditions . ' ';
                 }
                 continue;
             }
 
-            /*Array (
-			    [0] => where
-			    [1] => name
-			    [2] => =
-			    [3] => system/fileversion
-			)*/
-            $condition_0 = $condition[0];
+            /*
+             * Array (
+             * [0] => where
+             * [1] => name
+             * [2] => =
+             * [3] => system/fileversion
+             * )
+             */
+            $condition_0 = ($first-- || $idx > 0) ? $condition[0] : "";
 
             // cbx - we need the field alone, "as" remove in addField
             $column = $condition[1];
 
             $isNumber = is_int($condition[3]) || is_float($condition[3]);
+            $isDecrypt = false;
 
-            if ( is_string($column) ) {
-            	// cbx - we need to have a tableprefix if its not an alias
-            	if (!$this->isAlias($column)) {
-            		if (strpos($column, ".") === false) {
-            			$column = $this->attr("fieldTablePrefix") . "." . $column;
-            		}
+            if (is_string($column)) {
+                // cbx - we need to have a tableprefix if its not an alias
+                $columnBackup = $column;
+                if (! $this->isAlias($column)) {
+                    if (strpos($column, ".") === false) {
+                        $column = $this->attr("fieldTablePrefix") . "." . $column;
+                    }
 
-            		if ($this->cbx_isFieldEncrypted($column)) {
-            			$column = new Func('aes_decrypt', $column);
-            		}
-            	}
+                    if ($this->cbx_isFieldEncrypted($column)) {
+                        $isDecrypt = true;
+                        // char not good with flag, but caseless search need charset, mysql 5.6 nchar -> latin,  mysql8: utf8mb4
+                        $column = new Func('aes_decrypt', $column, ["cast" => "char"]);
+                    } else {
+                        // remove prefix if not encrypted
+                        // preserves field as customname
+                        $column = $columnBackup;
+                    }
+                }
             }
 
             // we always need to escape the key
@@ -944,7 +933,8 @@ class Mysql implements TranslatorInterface
             // when we have an array as where values we have
             // to parameterize them
             if (is_Object($condition[3])) {
-                $param = $condition[3]->value;
+                // pff ja nun, das is doof
+                $param = $this->isField($condition[3]) ? $condition[3] : (isset($condition[3]->value) ? $condition[3]->value : $condition[3]);
             } else {
                 $param = $condition[3];
             }
@@ -952,69 +942,73 @@ class Mysql implements TranslatorInterface
             if ($condition_2 === "between") {
                 @List ($v1, $v2) = $param;
                 $condition_3 = $this->translateParam($v1) . ' and ' . $this->translateParam($v2);
-            }
-            else if ($condition_2 === "in" || $condition_2 === "not in") {
+            } else if ($condition_2 === "in" || $condition_2 === "not in") {
                 $condition_3 = '(' . $this->parameterize($param) . ')';
-            }
-            else {
-                $condition_3 = $this->translateParam($param);
+            } else {
+                // convert the value to utf8mb4 if data was decrypted
+                $condition_3 = ($isDecrypt ? 'CONVERT(' : "") . $this->translateParam($param) . ($isDecrypt ? ' using utf8mb4) COLLATE utf8mb4_general_ci' : '');
             }
 
             // implode the beauty
-            $build .= " $condition_0 $condition_1 $condition_2 $condition_3";
+            $_build = " $condition_0 $condition_1 $condition_2 $condition_3";
+
+            if (empty(trim($_build))) {
+                die($_build);
+            }
+
+            $build .= $_build;
         }
 
         return $build;
     }
 
-	function isAlias($column)
-	{
-		foreach( (array)$this->attr("fields") as $field ){
-			if (isset($field[1]) && $field[1] == $column) return true;
-		}
-		return false;
-	}
+    function isAlias($column)
+    {
+        foreach ((array) $this->attr("fields") as $field) {
+            if (isset($field[1]) && $field[1] == $column)
+                return true;
+        }
+        return false;
+    }
 
     function translateOns($attributes)
     {
-    	$joinConditions = '';
+        $joinConditions = '';
 
-    	// remove the first type from the ons
-    	reset($attributes['ons']);
-    	$attributes['ons'][key($attributes['ons'])][0] = '';
+        // remove the first type from the ons
+        reset($attributes['ons']);
+        $attributes['ons'][key($attributes['ons'])][0] = '';
 
-    	foreach($attributes['ons'] as $on)
-    	{
-    		// cbx - on closure
-    		if (isset( $on[1] ) && $on[1] instanceof BaseQuery)
-    		{
-    			/** @var array $subConditions The array of $conditions inside the nested query */
-    			$subAttributes = $on[1]->attributes();
+        foreach ($attributes['ons'] as $on) {
+            // cbx - on closure
+            if (isset($on[1]) && $on[1] instanceof BaseQuery) {
+                /** @var array $subConditions The array of $conditions inside the nested query */
+                $subAttributes = $on[1]->attributes();
 
-    			$translatedSubConditions = $this->translateOns($subAttributes);
+                $translatedSubConditions = $this->translateOns($subAttributes);
 
-    			// remove the statement from the result (+2 for the space before and after)
-//     			$translatedSubConditions = substr($translatedSubConditions, strlen($statement) + 2);
+                // remove the statement from the result (+2 for the space before and after)
+                // $translatedSubConditions = substr($translatedSubConditions, strlen($statement) + 2);
 
-    			// The parameters get added by the call of compile where
-    			$joinConditions .= ' ' . $on[0] . ' ( ' . $translatedSubConditions . ' )';
-    			continue;
-    		}
+                // The parameters get added by the call of compile where
+                $joinConditions .= ' ' . $on[0] . ' ( ' . $translatedSubConditions . ' )';
+                continue;
+            }
 
-    		@list($type, $localKey, $operator, $referenceKey) = $on;
-    		$joinConditions .= ' ' . $type . ' ' . $this->escape($localKey) . ' ' . $operator . ' ' . $this->escape($referenceKey);
-    	}
+            @list ($type, $localKey, $operator, $referenceKey) = $on;
+            $joinConditions .= ' ' . $type . ' ' . $this->escape($localKey) . ' ' . $operator . ' ' . $this->escape($referenceKey);
+        }
 
-    	$joinConditions = trim($joinConditions);
+        $joinConditions = trim($joinConditions);
 
-    	// compile the where if set
-    	if (!empty($attributes['wheres']))
-    	{
-    		$joinConditions .= ' and ' . substr($this->translateWhere($attributes['wheres']), 7);
-    	}
+        // compile the where if set
+        if (! empty($attributes['wheres'])) {
+            $joinConditions .= ' and ' . substr($this->translateWhere($attributes['wheres']), 7);
+        }
 
-    	return $joinConditions;
+        return $joinConditions;
     }
+
     /**
      * Build the sql join statements
      *
@@ -1024,10 +1018,10 @@ class Mysql implements TranslatorInterface
     {
         $build = '';
 
-        foreach ($this->attr('joins') as $join)
-        {
+        foreach ($this->attr('joins') as $join) {
             // get the type and table
-            $type = $join[0]; $table = $join[1];
+            $type = $join[0];
+            $table = $join[1];
 
             // start the join
             $build .= ' ' . $type . ' join ';
@@ -1040,59 +1034,56 @@ class Mysql implements TranslatorInterface
 
             // to make nested join conditions possible you can pass an closure
             // wich will create a new query where you can add your nested ons and wheres
-            if (!isset($join[3]) && isset($join[2]) && $join[2] instanceof BaseQuery)
-            {
+            if (! isset($join[3]) && isset($join[2]) && $join[2] instanceof BaseQuery) {
                 $subAttributes = $join[2]->attributes();
 
-//                 $joinConditions = '';
+                // $joinConditions = '';
                 $build .= $this->translateOns($subAttributes);
 
-//                 print_r($build);
-//                 die();
-//                 foreach($subAttributes['ons'] as $on)
-//                 {
-//                 	var_dump( $on );
-//                 	// cbx - on closure
-//                 	if (isset( $on[1] ) && $on[1] instanceof SelectJoin)
-//                 	{
+                // print_r($build);
+                // die();
+                // foreach($subAttributes['ons'] as $on)
+                // {
+                // var_dump( $on );
+                // // cbx - on closure
+                // if (isset( $on[1] ) && $on[1] instanceof SelectJoin)
+                // {
 
-//                 		var_dump( $on );
-//                 		die();
+                // var_dump( $on );
+                // die();
 
-//                 		/** @var array $subConditions The array of $conditions inside the nested query */
-//                 		$subConditions = $condition[1]->attributes()[$statement . 's'];
+                // /** @var array $subConditions The array of $conditions inside the nested query */
+                // $subConditions = $condition[1]->attributes()[$statement . 's'];
 
-//                 		$translatedSubConditions = $this->translateConditional($statement, $subConditions);
+                // $translatedSubConditions = $this->translateConditional($statement, $subConditions);
 
-//                 		// remove the statement from the result (+2 for the space before and after)
-//                 		$translatedSubConditions = substr($translatedSubConditions, strlen($statement) + 2);
+                // // remove the statement from the result (+2 for the space before and after)
+                // $translatedSubConditions = substr($translatedSubConditions, strlen($statement) + 2);
 
-//                 		if (count($subConditions)>1)
-//                 		{
-//                 			// The parameters get added by the call of compile where
-//                 			$joinConditions .= ' ' . $on[0] . ' ( ' . $translatedSubConditions . ' )';
-//                 		}else{
-//                 			$joinConditions .= ' ' . $on[0] . ' ' . $translatedSubConditions . '';
-//                 		}
-//                 		continue;
-//                 	}
+                // if (count($subConditions)>1)
+                // {
+                // // The parameters get added by the call of compile where
+                // $joinConditions .= ' ' . $on[0] . ' ( ' . $translatedSubConditions . ' )';
+                // }else{
+                // $joinConditions .= ' ' . $on[0] . ' ' . $translatedSubConditions . '';
+                // }
+                // continue;
+                // }
 
-//                 	@list($type, $localKey, $operator, $referenceKey) = $on;
-//                 	$joinConditions .= ' ' . $type . ' ' . $this->escape($localKey) . ' ' . $operator . ' ' . $this->escape($referenceKey);
-//                 }
+                // @list($type, $localKey, $operator, $referenceKey) = $on;
+                // $joinConditions .= ' ' . $type . ' ' . $this->escape($localKey) . ' ' . $operator . ' ' . $this->escape($referenceKey);
+                // }
 
-//                 $build .= trim($joinConditions);
+                // $build .= trim($joinConditions);
 
-//                 // compile the where if set
-//                 if (!empty($subAttributes['wheres']))
-//                 {
-//                     $build .= ' and ' . substr($this->translateWhere($subAttributes['wheres']), 7);
-//                 }
-            }
-            else
-            {
+                // // compile the where if set
+                // if (!empty($subAttributes['wheres']))
+                // {
+                // $build .= ' and ' . substr($this->translateWhere($subAttributes['wheres']), 7);
+                // }
+            } else {
                 // othewise default join
-                @list($type, $table, $localKey, $operator, $referenceKey) = $join;
+                @list ($type, $table, $localKey, $operator, $referenceKey) = $join;
                 $build .= $this->escape($localKey) . ' ' . $operator . ' ' . $this->escape($referenceKey);
             }
             $build .= ' )';
@@ -1110,38 +1101,42 @@ class Mysql implements TranslatorInterface
     {
         $build = " order by ";
 
-        foreach ($this->attr('orders') as $column => $direction)
-        {
+        foreach ($this->attr('orders') as $column => $direction) {
             // in case a raw value is given we had to
             // put the column / raw value an direction inside another
             // array because we cannot make objects to array keys.
-            if (is_array($direction))
-            {
+            if (is_array($direction)) {
                 // This only works in php 7 the php 5 fix is below
-                //@list($column, $direction) = $direction;
+                // @list($column, $direction) = $direction;
                 $column = $direction[0];
                 $direction = $direction[1];
             }
 
-
-            // cbx - we need to have a tableprefix
-             if (is_string($column) && strpos($column, ".") === false) {
-            	$column = $this->attr("fieldTablePrefix") . "." . $column;
+            // cbx - we need to have a tableprefix - add it!
+            // but custom expression cant have one
+            $columnBackup = $column;
+            if (is_string($column) && strpos($column, ".") === false) {
+                $column = $this->attr("fieldTablePrefix") . "." . $column;
             }
 
             if (is_string($column) && $this->cbx_isFieldEncrypted($column)) {
-            	$column = new Func('aes_decrypt', $column); // (object)["value"=>"__AES_KEY__"]
-            	// added length to sort string "9" before "100"
-            	// no performance test done
-            	$column = "CAST(" . $this->escape($column) . " AS SIGNED) $direction, " . $this->escape($column) . ' collate utf8_general_ci';
+//                 $column = new Func('aes_decrypt', $column, ["cast" => false]); // (object)["value"=>"__AES_KEY__"]
+                                                            // added length to sort string "9" before "100"
+                                                            // no performance test done -  collate utf8_general_ci, test seems no diffrent its same as in table
+//                 $column = "CAST(" . $this->escape($column) . " AS SIGNED) $direction, " . "CAST(" . $this->escape($column) . ' AS CHAR)';
+                $column = $this->escape(new Func('aes_decrypt', $columnBackup, ["cast" => "signed"])). " $direction, " . $this->escape(new Func('aes_decrypt', $columnBackup, ["cast" => "char"]));
             } else {
-            	$column = $this->escape($column);
+                $column = $this->escape($columnBackup);
             }
 
-            $build .= $column. ' ' . $direction . ', ';
+            $build .= $column . ' ' . $direction . ', ';
         }
 
-        return substr($build, 0, -2);
+        if (substr($build, -2) == ', ') {
+            $build = substr($build, 0, -2);
+        }
+
+        return $build;
     }
 
     /**
@@ -1157,7 +1152,7 @@ class Mysql implements TranslatorInterface
     /**
      * Build the limit and offset part
      *
-     * @param Query         $query
+     * @param Query $query
      * @return string
      */
     protected function translateLimitWithOffset()
@@ -1168,7 +1163,7 @@ class Mysql implements TranslatorInterface
     /**
      * Build the limit and offset part
      *
-     * @param Query         $query
+     * @param Query $query
      * @return string
      */
     protected function translateLimit()
@@ -1183,7 +1178,7 @@ class Mysql implements TranslatorInterface
      */
     protected function translateDrop()
     {
-        return 'drop table ' . $this->escapeTable() .';';
+        return 'drop table ' . $this->escapeTable() . ';';
     }
 
     /**
@@ -1193,7 +1188,7 @@ class Mysql implements TranslatorInterface
      */
     protected function translateTruncate()
     {
-        return 'truncate table ' . $this->escapeTable() .';';
+        return 'truncate table ' . $this->escapeTable() . ';';
     }
 
     /**
@@ -1203,10 +1198,8 @@ class Mysql implements TranslatorInterface
      */
     protected function translateShow()
     {
-    	return 'show columns from ' . $this->escapeTable() .';';
+        return 'show columns from ' . $this->escapeTable() . ';';
     }
-
-
 
     /**
      * Translate the exists querry
@@ -1215,17 +1208,16 @@ class Mysql implements TranslatorInterface
      */
     protected function translateExists()
     {
-        $translator = new static;
+        $translator = new static();
 
         // translate the subselect
-        @list($subQuery, $subQueryParameters) = $translator->translate($this->attr('select'));
+        @list ($subQuery, $subQueryParameters) = $translator->translate($this->attr('select'));
 
         // merge the parameters
-        foreach($subQueryParameters as $parameter)
-        {
+        foreach ($subQueryParameters as $parameter) {
             $this->addParameter($parameter);
         }
 
-        return 'select exists(' . $subQuery .') as `exists`';
+        return 'select exists(' . $subQuery . ') as `exists`';
     }
 }

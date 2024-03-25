@@ -349,7 +349,7 @@ class SelectBase extends Base
     {
     	$type = $type ? $type : 'and';
         // check if the type is valid
-        if (!in_array($type, array('and', 'or', 'where', 'having')))
+        if (!in_array($type, array('and', 'and not', 'or', 'or not', 'where', 'having')))
         {
             throw new Exception('Invalid condition type "'.$type.'", must be one of the following: and, or, where, having');
         }
@@ -358,7 +358,7 @@ class SelectBase extends Base
         $array = &$this->{$statement . 's'};
 
         if (empty($array)) {
-            $type = $statement;
+            $type = $statement . (strpos($type, "not") !== false ? " not" : "");
         } elseif ($type === $statement) {
             $type = 'and';
         }

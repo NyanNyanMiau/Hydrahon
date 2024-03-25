@@ -556,7 +556,7 @@ class Select extends SelectBase implements FetchableInterface
          // run the callbacks to retirve the results
         $results = $this->executeResultFetcher();
 
-        // we always exprect an array here!
+        // we always expect an array here!
         if (!is_array($results) || empty($results))
         {
             $results = array();
@@ -609,11 +609,12 @@ class Select extends SelectBase implements FetchableInterface
 
         // when the limit is specified to exactly one result we
         // return directly that one result instead of the entire array
-        if ($this->onlyOne)
-        {
-            $results = reset($results);
+        if ($this->onlyOne) {
             // reset this flag
             $this->onlyOne = false;
+            if (!empty($results)) {
+                $results = reset($results);
+            }
         }
 
         return $results;
@@ -643,7 +644,13 @@ class Select extends SelectBase implements FetchableInterface
     public function one()
     {
     	$this->onlyOne = true;
-        return $this->limit(0, 1)->get();
+
+    	$limit = $this->limit;
+
+        $one = $this->limit(0, 1)->get();
+
+        $this->limit = $limit;
+        return $one;
     }
 
     /**
@@ -712,13 +719,13 @@ class Select extends SelectBase implements FetchableInterface
             $field = new Expression('*');
         }
 
-        $prevFields = $this->fields;
+        $fields = $this->fields;
 
         // return the column
-        $c = (int) $this->column(new Func('count', $field));
+        $count = (int) $this->column(new Func('count', $field));
 
-        $this->fields = $prevFields;
-        return $c;
+        $this->fields = $fields;
+        return $count;
     }
 
     /**
